@@ -79,6 +79,7 @@ export async function saveConfig(dir, atlas) {
   const cfg = {
     version: VERSION, name: atlas.name, cols: atlas.cols, rows: atlas.rows,
     hexMiles: atlas.hexMiles, orientation: atlas.orientation, createdWith: atlas.createdWith,
+    markers: atlas.markers || [],
   };
   await writeTextFile(dir, CONFIG_FILE, JSON.stringify(cfg, null, 2));
 }

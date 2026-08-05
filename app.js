@@ -40,6 +40,7 @@ const TOOL_ICONS = {
   settlement: '<path d="M4 20V11l8-6 8 6v9z"/><path d="M9.5 20v-5h5v5"/>',
   site: '<path d="M7 21V4l10 3-10 3"/>',
   erase: '<path d="M4 15l7-7 7 7-4 4H8z"/><path d="M8 21h10"/>',
+  marker: '<path d="M12 21s6-5.7 6-11a6 6 0 0 0-12 0c0 5.3 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',
 };
 const WAG_LINES = [
   { key: 'weather', tag: 'Weather · Table A' },
@@ -60,8 +61,24 @@ const S = {
   brushRegion: 'The Pine Expanse',
   showLabels: true,
   notesTab: 'write',
+  theme: 'auto',        // 'auto' | 'light' | 'dark' (backlog 14)
   view: { x: 0, y: 0, w: 100, h: 100 },
 };
+
+// ---- theme (auto / light / dark) ------------------------------------------
+
+const THEME_KEY = 'td10-atlas-theme';
+const THEME_LABEL = { auto: '◐ Auto', light: '☀ Light', dark: '☾ Dark' };
+function applyTheme() {
+  if (S.theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = S.theme;
+}
+function cycleTheme() {
+  S.theme = S.theme === 'auto' ? 'light' : S.theme === 'light' ? 'dark' : 'auto';
+  try { localStorage.setItem(THEME_KEY, S.theme); } catch { /* ignore */ }
+  applyTheme();
+  renderConn();
+}
 
 // ---- element refs ---------------------------------------------------------
 
@@ -79,6 +96,8 @@ $('#brand-mark').innerHTML = svgIcon(BRAND_SVG, { size: 22 });
 // ---- boot -----------------------------------------------------------------
 
 async function boot() {
+  try { S.theme = localStorage.getItem(THEME_KEY) || 'auto'; } catch { S.theme = 'auto'; }
+  applyTheme();
   buildTools();
   wireEvents();
 
@@ -156,6 +175,7 @@ function renderConn() {
       ? `<button class="btn small" data-action="new-folder">New folder</button>` +
         `<button class="btn small" data-action="open-folder">Open folder</button>`
       : '') +
+    `<button class="btn small ghost" data-action="theme" title="Theme: auto / light / dark">${THEME_LABEL[S.theme]}</button>` +
     `<button class="btn small ghost" data-action="export">Export</button>` +
     `<button class="btn small ghost" data-action="import">Import</button>`;
 }
@@ -178,6 +198,7 @@ function buildTools() {
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
     '<div class="sep"></div>' +
+    tool('marker', 'Party marker — click a hex to place / move it') +
     tool('erase', 'Erase hex');
 }
 
@@ -213,6 +234,9 @@ function renderHud() {
     `<span class="sep2">|</span> Map ` +
     `<input type="number" data-hud="cols" min="1" max="60" value="${S.atlas.cols}" style="width:46px" title="columns"/>×` +
     `<input type="number" data-hud="rows" min="1" max="60" value="${S.atlas.rows}" style="width:46px" title="rows"/>` +
+    `<span class="sep2">|</span> Scale ` +
+    `<input type="number" data-hud="hexmiles" min="1" max="100" value="${S.atlas.hexMiles}" style="width:42px" title="miles across a hex"/>` +
+    ` mi/hex (~${Math.round(0.8660254 * S.atlas.hexMiles * S.atlas.hexMiles)} sq&nbsp;mi)` +
     brush +
     `<span class="sep2">|</span> ${count} hex${count === 1 ? '' : 'es'}`;
 }
@@ -279,7 +303,7 @@ function renderMap() {
   // live here so nothing overpaints them and z-order is deterministic.
   mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="overlay"></g>`;
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
-  drawSelection();
+  drawOverlay();
 }
 
 function refreshHex(id) {
@@ -289,15 +313,35 @@ function refreshHex(id) {
   node.outerHTML = buildHex(col, row);
 }
 
-// The active-hex highlight: a single inset polygon in the overlay, drawn last, with
-// a non-scaling stroke — so it never doubles up on the shared hex edge (backlog 13).
-function drawSelection() {
+// The overlay layer, drawn above every hex: the active-hex highlight (a single
+// inset polygon with a non-scaling stroke, so it never doubles on the shared edge —
+// backlog 13) plus any markers (backlog 16).
+function drawOverlay() {
   const ov = mapEl.querySelector('#overlay');
   if (!ov) return;
-  if (!S.selected) { ov.innerHTML = ''; return; }
-  const { col, row } = parseId(S.selected);
-  const { x, y } = hexCenter(col, row, SIZE);
-  ov.innerHTML = `<polygon class="sel-outline" points="${hexPoints(x, y, SIZE - 2.6)}"/>`;
+  let s = '';
+  if (S.selected) {
+    const { col, row } = parseId(S.selected);
+    const { x, y } = hexCenter(col, row, SIZE);
+    s += `<polygon class="sel-outline" points="${hexPoints(x, y, SIZE - 2.6)}"/>`;
+  }
+  (S.atlas.markers || []).forEach((m) => {
+    const { col, row } = parseId(m.hexId);
+    if (col < 0 || row < 0 || col >= S.atlas.cols || row >= S.atlas.rows) return;
+    const { x, y } = hexCenter(col, row, SIZE);
+    s += markerGlyph(m, x, y);
+  });
+  ov.innerHTML = s;
+}
+
+function markerGlyph(m, x, y) {
+  const sz = SIZE * 0.62;
+  const color = m.type === 'party' ? '#d9694e' : 'var(--accent)';
+  // A filled pin with a white keyline + white dot so it reads on any terrain.
+  return `<g transform="translate(${(x - sz / 2).toFixed(1)},${(y - sz).toFixed(1)})">` +
+    `<g transform="scale(${(sz / 24).toFixed(3)})" fill="${color}" stroke="#ffffff" stroke-width="1.3" stroke-linejoin="round">` +
+    `<path d="M12 22s6.5-6.1 6.5-11.5a6.5 6.5 0 0 0-13 0C5.5 15.9 12 22 12 22z"/>` +
+    `<circle cx="12" cy="10.5" r="2.4" fill="#ffffff" stroke="none"/></g></g>`;
 }
 
 function parseId(id) {
@@ -402,6 +446,9 @@ function wirePointer() {
 // a stroke — so a click on a hex that already has that stamp removes it (backlog 11),
 // but dragging across hexes only ever adds. Canon hexes refuse all paint (backlog 2).
 function paintHex(id, allowToggle) {
+  // The party marker may sit on any hex, canon included; every other paint tool
+  // refuses canon hexes.
+  if (S.tool === 'marker') { if (allowToggle) toggleParty(id); return; }
   const existing = getHex(S.atlas, id);
   if (existing && existing.canon) {
     if (allowToggle) toast('Canon hex is locked — roll the WAG or edit notes in the inspector.');
@@ -418,6 +465,17 @@ function paintHex(id, allowToggle) {
 
 function clearSite(h) { h.siteType = h.siteCondition = h.siteOpposition = h.siteTreasure = ''; }
 function clearSettlement(h) { h.settlementType = h.settlementConflict = ''; }
+
+// The party marker: a single atlas-level overlay token. Click a hex to place it,
+// click its current hex to pick it up (backlog 16). Never touches hex records.
+function toggleParty(id) {
+  const list = S.atlas.markers || (S.atlas.markers = []);
+  const m = list.find((x) => x.type === 'party');
+  if (m) { if (m.hexId === id) S.atlas.markers = list.filter((x) => x !== m); else m.hexId = id; }
+  else list.push({ type: 'party', hexId: id, label: 'Party' });
+  persistConfig();
+  drawOverlay();
+}
 
 /** Ensure the hex, mutate it, then persist + repaint + refresh the inspector. */
 function mutate(id, fn) {
@@ -468,7 +526,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [] },
       hexes,
     }));
   } catch { /* quota or private mode — ignore */ }
@@ -488,7 +546,7 @@ function loadLocal() {
 
 function setSelected(id) {
   S.selected = id;
-  drawSelection();
+  drawOverlay();
   renderInspector();
 }
 
@@ -734,12 +792,17 @@ function wireEvents() {
       S.atlas[el.dataset.hud] = v;
       renderMap(); fitView(); persistConfig(); renderHud();
     }
+    if (el.dataset.hud === 'hexmiles') {
+      S.atlas.hexMiles = Math.max(1, Math.min(100, Math.round(Number(el.value)) || 6));
+      persistConfig(); renderHud();
+    }
   });
 
   connEl.addEventListener('click', (e) => {
     const b = e.target.closest('[data-action]');
     if (!b) return;
     const a = b.dataset.action;
+    if (a === 'theme') cycleTheme();
     if (a === 'new-folder') newFolder();
     if (a === 'open-folder') openFolder();
     if (a === 'export') exportBundle();
@@ -756,7 +819,7 @@ function wireEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input,textarea,select')) return;
-    const map = { v: 'inspect', t: 'terrain', r: 'region', s: 'settlement', d: 'site', e: 'erase' };
+    const map = { v: 'inspect', t: 'terrain', r: 'region', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
     if (map[e.key]) setTool(map[e.key]);
     if (e.key === 'g' && S.selected) { onInspectorClick({ target: mkFakeBtn('generate') }); }
     if (e.key === 'Escape') setSelected(null);
@@ -804,7 +867,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [] }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

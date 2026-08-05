@@ -13,7 +13,13 @@
   dragging only adds.
 - [x] **13. Active-hex outline** — single inset overlay polygon, non-scaling
   stroke; no more doubling on the shared edge.
-- [ ] 3, 4, 5, 6, 7, 8, 9, 12, 14, 15, 16, 17, 18 — see below.
+- [x] **14. Dark / light toggle** — Auto / Light / Dark control in the top bar,
+  persisted, driven by `data-theme` on the root (overrides the OS both ways).
+- [x] **16. Markers** — a party marker on its own overlay layer; the marker tool
+  places / moves / picks it up (any hex, canon included); stored in `atlas.json`.
+- [x] **17. Hex scale** — miles-per-hex control in the HUD with derived area
+  (`~0.866·w²` sq mi); persisted in the config.
+- [ ] 3, 4, 5, 6, 7, 8, 9, 12, 15, 18 — see below.
 
 Assets pulled from `td10rpg/td10` for the remaining items live in `assets/`
 (`the-fort-world-map.png`, `wag-terrain-key.png`). The canonical WAG tool is at

@@ -22,9 +22,17 @@ export function createAtlas(name = 'The Hinterlands') {
     rows: DEFAULT_ROWS,
     hexMiles: DEFAULT_HEX_MILES,
     orientation: 'flat-odd-q',
-    createdWith: 'Hinterlands Atlas',
-    hexes: {}, // id -> hex record (populated only)
+    createdWith: 'td10 Atlas',
+    hexes: {},      // id -> hex record (populated only)
+    markers: [],    // atlas-level overlay: [{ type, hexId, label }] (backlog 16)
   };
+}
+
+/** Coerce a raw markers array into clean marker records. */
+export function normalizeMarkers(raw) {
+  return (Array.isArray(raw) ? raw : [])
+    .filter((m) => m && m.hexId && m.type)
+    .map((m) => ({ type: String(m.type), hexId: String(m.hexId), label: typeof m.label === 'string' ? m.label : '' }));
 }
 
 export function getHex(atlas, id) {
@@ -63,6 +71,7 @@ export function normalizeConfig(raw) {
     a.cols = clampInt(raw.cols, 1, 60, DEFAULT_COLS);
     a.rows = clampInt(raw.rows, 1, 60, DEFAULT_ROWS);
     a.hexMiles = clampInt(raw.hexMiles, 1, 100, DEFAULT_HEX_MILES);
+    a.markers = normalizeMarkers(raw.markers);
   }
   return a;
 }

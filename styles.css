@@ -27,16 +27,32 @@
   --radius: 8px;
   --shadow: 0 6px 24px rgba(0,0,0,.4);
 }
+/* Light palette. Applied automatically when the OS prefers light AND no explicit
+   theme is set, or whenever the theme toggle forces light (item 14). The two
+   selectors carry identical values so auto- and forced-light look the same. */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #faf8f8; --panel: #ffffff; --panel-2: #f1efef; --ink: #2b2b2b;
     --ink-dim: #4e4e4e; --line: #e5e5e5; --line-soft: #eeecec;
-    --accent: #284b63;      /* Tiny d10 secondary (light) — deep slate blue */
-    --accent-2: #84a59d;    /* Tiny d10 tertiary — sage */
-    --on-accent: #faf8f8;   /* text on an accent fill (light theme: accent is dark) */
+    --accent: #284b63; --accent-2: #84a59d; --on-accent: #faf8f8;
     --map-bg: #e7efee; --hex-blank: #f4f2f1; --hex-line: #d9d6d2;
     --shadow: 0 6px 24px rgba(40,50,60,.14);
   }
+}
+:root[data-theme="light"] {
+  --bg: #faf8f8; --panel: #ffffff; --panel-2: #f1efef; --ink: #2b2b2b;
+  --ink-dim: #4e4e4e; --line: #e5e5e5; --line-soft: #eeecec;
+  --accent: #284b63; --accent-2: #84a59d; --on-accent: #faf8f8;
+  --map-bg: #e7efee; --hex-blank: #f4f2f1; --hex-line: #d9d6d2;
+  --shadow: 0 6px 24px rgba(40,50,60,.14);
+}
+/* Forced dark (toggle) just re-asserts the base values so it wins under a light OS. */
+:root[data-theme="dark"] {
+  --bg: #161618; --panel: #1d1d20; --panel-2: #26262b; --ink: #ebebec;
+  --ink-dim: #a9a9ad; --line: #393639; --line-soft: #2c2a2e;
+  --accent: #7b97aa; --accent-2: #84a59d; --on-accent: #17181a;
+  --map-bg: #14201f; --hex-blank: #232528; --hex-line: #47454a;
+  --shadow: 0 6px 24px rgba(0,0,0,.4);
 }
 
 * { box-sizing: border-box; }
@@ -123,7 +139,8 @@ input, select, textarea { font-family: inherit; color: inherit; }
 
 .hex { cursor: pointer; }
 .hex polygon { stroke: var(--hex-line); stroke-width: 1; transition: fill .12s; }
-.sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; pointer-events: none; }
+#overlay { pointer-events: none; }
+.sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .hex .hex-label { fill: var(--ink-dim); font-size: 8px; font-family: var(--sans); pointer-events: none; }
 .hex .hex-name { fill: var(--ink); font-size: 8.5px; font-weight: 600; font-family: var(--serif); pointer-events: none; }
 .hex .glyph { pointer-events: none; }
