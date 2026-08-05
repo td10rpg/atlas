@@ -324,14 +324,14 @@ export const TREASURE = [
 // be auto-set upstream; everything else follows the WAG play loop. Sites and
 // settlements are only rolled when asked for (they're the discovered layer).
 
-export function generateHex(terrainKey, { site = false, settlement = false } = {}) {
+export function generateHex(terrainKey) {
   const feature = rollFeature(terrainKey);
   const enc = rollEncounter(terrainKey);
   const weather = rollTable(WEATHER);
   const sign = rollTable(SIGN);
   const discovery = rollTable(DISCOVERY);
 
-  const out = {
+  return {
     terrain: terrainKey,
     weather: `${weather.name} — ${weather.desc}`,
     feature: feature.name,
@@ -341,10 +341,6 @@ export function generateHex(terrainKey, { site = false, settlement = false } = {
     discovery: `${discovery.name} — ${discovery.desc}`,
     generatedAt: new Date().toISOString(),
   };
-
-  if (site) Object.assign(out, rollSite());
-  if (settlement) Object.assign(out, rollSettlement());
-  return out;
 }
 
 function encounterText(enc) {
@@ -354,29 +350,33 @@ function encounterText(enc) {
   return `${enc.check.name}${tag} — ${who}.`;
 }
 
-export function rollSite() {
+// A place is { name, ...rolled fields }. The name is the author's; rollSiteFields /
+// rollSettlementFields roll only the mechanical lines (so a re-roll keeps the name).
+export function rollSiteFields() {
   const type = rollTable(SITE_TYPE);
   const cond = rollTable(SITE_CONDITION);
   const opp = rollTable(OPPOSITION);
   const treas = rollTable(TREASURE);
   return {
-    siteType: `${type.name} — ${type.desc}`,
-    siteCondition: `${cond.name} — ${cond.desc}`,
-    siteOpposition: `${opp.name} — ${opp.desc}`,
-    siteTreasure: `${treas.name} — ${treas.desc}`,
+    type: `${type.name} — ${type.desc}`,
+    condition: `${cond.name} — ${cond.desc}`,
+    opposition: `${opp.name} — ${opp.desc}`,
+    treasure: `${treas.name} — ${treas.desc}`,
   };
 }
-
-export function rollSettlement() {
+export function rollSettlementFields() {
   const type = rollTable(SETTLEMENT_TYPE);
   const conflict = rollTable(SETTLEMENT_CONFLICT);
   return {
-    settlementType: `${type.name} — ${type.desc}`,
-    settlementConflict: `${conflict.name} — ${conflict.desc}`,
+    type: `${type.name} — ${type.desc}`,
+    conflict: `${conflict.name} — ${conflict.desc}`,
   };
 }
+/** A freshly rolled site / settlement, name left blank for the GM to fill. */
+export function rollSite() { return Object.assign({ name: '' }, rollSiteFields()); }
+export function rollSettlement() { return Object.assign({ name: '' }, rollSettlementFields()); }
 
-// Re-roll a single field by key — powers the per-line dice buttons in the inspector.
+// Re-roll one WAG survey line — powers the per-line dice in the inspector.
 export function rerollField(key, terrainKey) {
   switch (key) {
     case 'weather':      { const r = rollTable(WEATHER);   return `${r.name} — ${r.desc}`; }
@@ -384,8 +384,6 @@ export function rerollField(key, terrainKey) {
     case 'discovery':    { const r = rollTable(DISCOVERY); return `${r.name} — ${r.desc}`; }
     case 'feature':      { const r = rollFeature(terrainKey); return { feature: r.name, featureDesc: r.desc }; }
     case 'encounter':    return encounterText(rollEncounter(terrainKey));
-    case 'site':         return rollSite();
-    case 'settlement':   return rollSettlement();
     default:             return '';
   }
 }

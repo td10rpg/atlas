@@ -10,10 +10,10 @@ import {
   createStarterAtlas, createAtlas, getHex, ensureHex, applyTerrainIcon,
   REGIONS, generateHex, rollTerrain, normalizeConfig, loadHexes,
 } from './map.js';
-import { TERRAINS, rerollField, rollSite, rollSettlement } from './wag.js';
+import { TERRAINS, rerollField, rollSite, rollSettlement, rollSiteFields, rollSettlementFields } from './wag.js';
 import {
   hexId, hexCenter, hexPoints, boardSize, isPopulated, hasSite, hasSettlement,
-  emptyHex, serializeHex,
+  emptyHex, emptySite, emptySettlement, serializeHex,
 } from './hex.js';
 import * as store from './storage.js';
 import { TERRAIN_ICONS, terrainGlyph, overlayGlyph, dieGlyph, svgIcon } from './icons.js';
@@ -265,10 +265,12 @@ function buildHex(col, row) {
       terrainGlyph(rec.icon, { size: gs }) + `</g>`;
   }
   if (rec && hasSettlement(rec)) {
-    inner += badge(cx + SIZE * 0.34, cy - SIZE * 0.5, 'settlement', '#d8b25a');
+    const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
+    inner += badge(cx + SIZE * 0.34, cy - SIZE * 0.5, 'settlement', '#d8b25a', n);
   }
   if (rec && hasSite(rec)) {
-    inner += badge(cx - SIZE * 0.62, cy - SIZE * 0.5, 'site', '#c98a8a');
+    const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
+    inner += badge(cx - SIZE * 0.62, cy - SIZE * 0.5, 'site', '#c98a8a', n);
   }
   if (rec && rec.canon) {
     inner += `<text class="canon-star" x="${cx}" y="${(cy + SIZE * 0.52).toFixed(1)}" text-anchor="middle" fill="var(--accent)" font-size="9">★</text>`;
@@ -282,12 +284,15 @@ function buildHex(col, row) {
   return `<g class="${cls}" data-id="${id}">${inner}</g>`;
 }
 
-function badge(x, y, kind, color) {
+function badge(x, y, kind, color, count) {
   const s = SIZE * 0.42;
+  const countMark = count > 1
+    ? `<text x="${(s + 1).toFixed(1)}" y="${(s * 0.35).toFixed(1)}" text-anchor="middle" font-size="${(s * 0.62).toFixed(1)}" font-weight="700" fill="${color}" stroke="var(--map-bg)" stroke-width="0.6" paint-order="stroke">×${count}</text>`
+    : '';
   return `<g transform="translate(${(x - s / 2).toFixed(1)},${(y - s / 2).toFixed(1)})" style="color:${color}">` +
     `<circle cx="${s / 2}" cy="${s / 2}" r="${s / 2 + 1}" fill="var(--map-bg)" stroke="${color}" stroke-width="0.8"/>` +
     `<g transform="translate(${s * 0.16},${s * 0.16}) scale(${(s * 0.68 / 24).toFixed(3)})">` +
-    overlayGlyph(kind, { size: 24 }) + `</g></g>`;
+    overlayGlyph(kind, { size: 24 }) + `</g>${countMark}</g>`;
 }
 
 function renderMap() {
@@ -457,14 +462,20 @@ function paintHex(id, allowToggle) {
   switch (S.tool) {
     case 'terrain': mutate(id, (h) => { h.terrain = S.brushTerrain; applyTerrainIcon(h); }); break;
     case 'region': mutate(id, (h) => { h.region = S.brushRegion; }); break;
-    case 'settlement': mutate(id, (h) => { if (hasSettlement(h)) { if (allowToggle) clearSettlement(h); } else Object.assign(h, rollSettlement()); }); break;
-    case 'site': mutate(id, (h) => { if (hasSite(h)) { if (allowToggle) clearSite(h); } else Object.assign(h, rollSite()); }); break;
+    case 'settlement': mutate(id, (h) => stampPlace(h, 'settlements', allowToggle)); break;
+    case 'site': mutate(id, (h) => stampPlace(h, 'sites', allowToggle)); break;
     case 'erase': eraseHex(id); break;
   }
 }
 
-function clearSite(h) { h.siteType = h.siteCondition = h.siteOpposition = h.siteTreasure = ''; }
-function clearSettlement(h) { h.settlementType = h.settlementConflict = ''; }
+// Stamp a WAG place onto a hex. A deliberate click on a hex holding exactly one of
+// that kind removes it (backlog 11); otherwise (or while dragging) it adds one —
+// so a hex can carry several (backlog 12).
+function stampPlace(h, key, allowToggle) {
+  const arr = h[key] || (h[key] = []);
+  if (allowToggle && arr.length === 1) { arr.length = 0; return; }
+  arr.push(key === 'settlements' ? rollSettlement() : rollSite());
+}
 
 // The party marker: a single atlas-level overlay token. Click a hex to place it,
 // click its current hex to pick it up (backlog 16). Never touches hex records.
@@ -604,8 +615,8 @@ function renderInspector() {
 
       WAG_LINES.map((l) => wagLine(l.key, l.tag)).join('') +
 
-      siteBlock(h, locked) +
-      settlementBlock(h, locked) +
+      placesBlock(h, 'settlement', locked) +
+      placesBlock(h, 'site', locked) +
 
       (locked ? '' :
         `<div class="field"><span class="field-label">Icon <button class="btn small ghost" data-action="icon-auto" title="Match the terrain">auto</button></span>` +
@@ -626,36 +637,37 @@ function renderInspector() {
   syncNotesTab();
 }
 
-function siteBlock(h, locked) {
-  if (!hasSite(h)) {
-    return locked ? '' : `<button class="btn small" data-action="add-site" style="margin:2px 0 12px">＋ Add site (Tables I–L)</button>`;
-  }
-  const die = locked ? '' : `<span class="wl-roll"><button class="iconbtn" data-action="reroll" data-field="site" title="Re-roll the site">${dieGlyph({ size: 15 })}</button></span>`;
-  const line = (label, field) =>
-    `<div class="wagline"><div class="wl-head"><span class="wl-tag">${label}</span>${die}</div>` +
-    `<div class="wl-text">${escapeHtml(h[field] || '—')}</div></div>`;
-  const rm = locked ? '' : `<span class="sp"><button class="btn small danger" data-action="rm-site">Remove</button></span>`;
-  return `<div class="subblock"><h4>Site ${rm}</h4>` +
-    line('Type · Table I', 'siteType') +
-    line('Condition · Table J', 'siteCondition') +
-    line('Opposition · Table K', 'siteOpposition') +
-    line('Treasure · Table L', 'siteTreasure') +
-    `</div>`;
-}
-
-function settlementBlock(h, locked) {
-  if (!hasSettlement(h)) {
-    return locked ? '' : `<button class="btn small" data-action="add-settlement" style="margin:2px 0 12px">＋ Add settlement (Tables G–H)</button>`;
-  }
-  const die = locked ? '' : `<span class="wl-roll"><button class="iconbtn" data-action="reroll" data-field="settlement" title="Re-roll the settlement">${dieGlyph({ size: 15 })}</button></span>`;
-  const line = (label, field) =>
-    `<div class="wagline"><div class="wl-head"><span class="wl-tag">${label}</span>${die}</div>` +
-    `<div class="wl-text">${escapeHtml(h[field] || '—')}</div></div>`;
-  const rm = locked ? '' : `<span class="sp"><button class="btn small danger" data-action="rm-settlement">Remove</button></span>`;
-  return `<div class="subblock"><h4>Settlement ${rm}</h4>` +
-    line('Type · Table G', 'settlementType') +
-    line('Conflict or Hook · Table H', 'settlementConflict') +
-    `</div>`;
+// Sites and settlements are arrays of named, editable places (backlog 9 + 12). A
+// card per entry: an editable name, editable rolled lines, a die to re-roll the
+// lines (keeps the name), and Remove. Add either a rolled one or a blank to fill
+// in by hand. On a canon hex everything is read-only.
+const PLACE_FIELDS = {
+  site: [['Type · Table I', 'type'], ['Condition · Table J', 'condition'], ['Opposition · Table K', 'opposition'], ['Treasure · Table L', 'treasure']],
+  settlement: [['Type · Table G', 'type'], ['Conflict or Hook · Table H', 'conflict']],
+};
+function placesBlock(h, kind, locked) {
+  const arr = kind === 'site' ? (h.sites || []) : (h.settlements || []);
+  const Label = kind === 'site' ? 'Site' : 'Settlement';
+  const tables = kind === 'site' ? 'I–L' : 'G–H';
+  if (!arr.length && locked) return '';
+  let cards = '';
+  arr.forEach((s, i) => {
+    const die = locked ? '' : `<button class="iconbtn" data-action="reroll-${kind}" data-idx="${i}" title="Re-roll the lines (keeps the name)">${dieGlyph({ size: 15 })}</button>`;
+    const rm = locked ? '' : `<button class="iconbtn danger" data-action="rm-${kind}" data-idx="${i}" title="Remove">✕</button>`;
+    const name = `<input class="place-name" data-place="${kind}" data-idx="${i}" data-field="name" value="${escapeHtml(s.name || '')}" placeholder="${Label} name" ${locked ? 'disabled' : ''}/>`;
+    let lines = '';
+    PLACE_FIELDS[kind].forEach(([lab, f]) => {
+      lines += `<div class="place-line"><span class="wl-tag">${lab}</span>` +
+        `<textarea class="place-field" rows="2" data-place="${kind}" data-idx="${i}" data-field="${f}" placeholder="—" ${locked ? 'readonly' : ''}>${escapeHtml(s[f] || '')}</textarea></div>`;
+    });
+    cards += `<div class="subblock place"><div class="place-head">${name}<span class="sp">${die}${rm}</span></div>${lines}</div>`;
+  });
+  const add = locked ? '' :
+    `<div class="place-add">` +
+    `<button class="btn small" data-action="add-${kind}">＋ Roll ${Label.toLowerCase()} (${tables})</button>` +
+    `<button class="btn small ghost" data-action="add-${kind}-blank">＋ Blank</button></div>`;
+  const title = arr.length > 1 ? `${Label}s` : Label;
+  return `<div class="place-section"><div class="place-title">${title}</div>${cards}${add}</div>`;
 }
 
 function notesBlock(h) {
@@ -687,16 +699,15 @@ function onInspectorClick(e) {
   const act = btn.dataset.action;
   const h = getHex(S.atlas, id) || emptyHex(id);
   const locked = !!h.canon;
-  // On a canon hex, only the WAG survey lines and notes may change — refuse the
-  // structural actions and any site/settlement re-roll (backlog 2).
-  const STRUCTURAL = ['roll-terrain', 'add-site', 'rm-site', 'add-settlement', 'rm-settlement', 'icon', 'icon-auto', 'clear'];
-  if (locked && (STRUCTURAL.includes(act) || (act === 'reroll' && (btn.dataset.field === 'site' || btn.dataset.field === 'settlement')))) return;
+  // On a canon hex only the WAG survey lines and notes may change — refuse every
+  // structural action, including the place add/remove/re-roll (backlog 2).
+  if (locked && act !== 'generate' && act !== 'copy' && !(act === 'reroll' && ['weather', 'feature', 'sign', 'encounter', 'discovery'].includes(btn.dataset.field))) return;
+  const idx = btn.dataset.idx != null ? +btn.dataset.idx : -1;
   switch (act) {
     case 'generate': {
       const hx = ensureHex(S.atlas, id);
       if (!hx.terrain) hx.terrain = rollTerrain(hx.region || 'Unassigned');
-      // Canon: only re-roll the survey lines; never touch the fixed places or icon.
-      Object.assign(hx, generateHex(hx.terrain, { site: !locked && hasSite(hx), settlement: !locked && hasSettlement(hx) }));
+      Object.assign(hx, generateHex(hx.terrain)); // survey lines only; never touches places
       if (!locked) applyTerrainIcon(hx);
       commit(id); break;
     }
@@ -712,10 +723,14 @@ function onInspectorClick(e) {
       if (typeof r === 'string') hx[btn.dataset.field] = r; else Object.assign(hx, r);
       commit(id); break;
     }
-    case 'add-site': { Object.assign(ensureHex(S.atlas, id), rollSite()); commit(id); break; }
-    case 'rm-site': { clearSite(ensureHex(S.atlas, id)); commit(id); break; }
-    case 'add-settlement': { Object.assign(ensureHex(S.atlas, id), rollSettlement()); commit(id); break; }
-    case 'rm-settlement': { clearSettlement(ensureHex(S.atlas, id)); commit(id); break; }
+    case 'add-site': { ensureHex(S.atlas, id).sites.push(rollSite()); commit(id); break; }
+    case 'add-site-blank': { ensureHex(S.atlas, id).sites.push(emptySite()); commit(id); break; }
+    case 'rm-site': { const a = ensureHex(S.atlas, id).sites; if (idx >= 0) a.splice(idx, 1); commit(id); break; }
+    case 'reroll-site': { const s = ensureHex(S.atlas, id).sites[idx]; if (s) Object.assign(s, rollSiteFields()); commit(id); break; }
+    case 'add-settlement': { ensureHex(S.atlas, id).settlements.push(rollSettlement()); commit(id); break; }
+    case 'add-settlement-blank': { ensureHex(S.atlas, id).settlements.push(emptySettlement()); commit(id); break; }
+    case 'rm-settlement': { const a = ensureHex(S.atlas, id).settlements; if (idx >= 0) a.splice(idx, 1); commit(id); break; }
+    case 'reroll-settlement': { const s = ensureHex(S.atlas, id).settlements[idx]; if (s) Object.assign(s, rollSettlementFields()); commit(id); break; }
     case 'icon': { const hx = ensureHex(S.atlas, id); hx.icon = btn.dataset.icon; hx.iconPinned = true; commit(id); break; }
     case 'icon-auto': { const hx = ensureHex(S.atlas, id); hx.iconPinned = false; applyTerrainIcon(hx); commit(id); break; }
     case 'copy': navigator.clipboard?.writeText(serializeHex(h)).then(() => toast('Stat-block copied')).catch(() => toast('Copy failed', true)); break;
@@ -747,6 +762,20 @@ function onInspectorInput(e) {
   const t = e.target;
   if (!S.selected) return;
   const id = S.selected;
+  if (t.dataset && t.dataset.place) {
+    const cur = getHex(S.atlas, id);
+    if (cur && cur.canon) return; // places are fixed on canon hexes
+    const hx = ensureHex(S.atlas, id);
+    const arr = t.dataset.place === 'site' ? hx.sites : hx.settlements;
+    const i = +t.dataset.idx;
+    if (arr && arr[i]) {
+      arr[i][t.dataset.field] = t.value;
+      persistHexDebounced(id);
+      clearTimeout(saveTimers['badge-' + id]);
+      saveTimers['badge-' + id] = setTimeout(() => refreshHex(id), 400); // badge may appear/vanish
+    }
+    return;
+  }
   if (t.name === 'notes') {
     const hx = ensureHex(S.atlas, id); hx.notes = t.value;
     persistHexDebounced(id);

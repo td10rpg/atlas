@@ -211,6 +211,22 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .subblock h4 { margin: 0 0 8px; font-family: var(--serif); font-size: 15px; display: flex; align-items: center; gap: 8px; }
 .subblock h4 .sp { margin-left: auto; display: flex; gap: 6px; }
 
+/* editable Site / Settlement cards (backlog 9 + 12) */
+.place-section { margin-bottom: 10px; }
+.place-title { font-family: var(--serif); font-size: 15px; margin: 14px 0 6px; }
+.subblock.place { padding: 8px 10px; margin-bottom: 8px; }
+.place-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.place-name { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font-family: var(--serif); font-size: 14px; }
+.place-name:focus, .place-field:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.place-head .sp { display: flex; gap: 6px; flex: 0 0 auto; }
+.iconbtn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--line)); font-size: 12px; line-height: 1; padding: 4px 6px; }
+.iconbtn.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+.place-line { margin-bottom: 6px; }
+.place-line .wl-tag { display: block; margin-bottom: 2px; }
+.place-field { width: 100%; resize: vertical; background: var(--panel-2); border: 1px solid var(--line-soft); border-radius: 6px; padding: 5px 7px; font-family: var(--serif); font-size: 13px; line-height: 1.42; color: var(--ink); }
+.place-field[readonly] { opacity: .8; cursor: default; }
+.place-add { display: flex; gap: 8px; margin: 2px 0 4px; }
+
 .notes-head { display: flex; align-items: center; gap: 8px; margin: 16px 0 6px; }
 .notes-head h4 { margin: 0; font-family: var(--serif); font-size: 15px; }
 .notes-head .tabs { margin-left: auto; display: flex; gap: 4px; }

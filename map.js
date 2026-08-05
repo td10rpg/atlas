@@ -80,6 +80,9 @@ export function normalizeConfig(raw) {
 export function loadHexes(atlas, records) {
   (records || []).forEach((h) => {
     if (!h || !h.id) return;
+    if (!Array.isArray(h.sites)) h.sites = [];
+    if (!Array.isArray(h.settlements)) h.settlements = [];
+    if (!Array.isArray(h.factions)) h.factions = [];
     if (!isPopulated(h)) return;
     applyTerrainIcon(h);
     atlas.hexes[h.id] = h;
@@ -145,7 +148,10 @@ export function seedCanon() {
     const h = emptyHex(id);
     Object.assign(h, {
       name: c.name, region: c.region, terrain: c.terrain,
-      settlementType: c.settlementType || '', settlementConflict: c.settlementConflict || '',
+      settlements: c.settlementType
+        ? [{ name: c.name, type: c.settlementType, conflict: c.settlementConflict || '' }]
+        : [],
+      sites: [],
       factions: c.factions || [], notes: c.notes || '',
       canon: true, generatedAt: '',
     });

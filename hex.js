@@ -55,26 +55,43 @@ export function neighbors(col, row) {
 }
 
 // ---- the hex record -------------------------------------------------------
-// A plain object with these fields. All strings default to ''. `site`/`settlement`
-// exist iff their *Type field is non-empty.
+// Scalar fields default to ''. Sites and settlements are *arrays* of named
+// objects (backlog 9 + 12): a hex can hold zero, one, or many of each, and each
+// carries an author-editable name alongside its (optionally rolled) fields.
+//   site:       { name, type, condition, opposition, treasure }
+//   settlement: { name, type, conflict }
 
 export const HEX_FIELDS = [
   'id', 'name', 'region', 'terrain', 'icon',
   'weather', 'feature', 'featureDesc', 'sign', 'encounter', 'discovery',
-  'siteType', 'siteCondition', 'siteOpposition', 'siteTreasure',
-  'settlementType', 'settlementConflict',
   'canon', 'generatedAt',
 ];
 
+export function emptySite() { return { name: '', type: '', condition: '', opposition: '', treasure: '' }; }
+export function emptySettlement() { return { name: '', type: '', conflict: '' }; }
+
+function siteObj(o) {
+  o = o || {};
+  return { name: str(o.name), type: str(o.type), condition: str(o.condition), opposition: str(o.opposition), treasure: str(o.treasure) };
+}
+function settlementObj(o) {
+  o = o || {};
+  return { name: str(o.name), type: str(o.type), conflict: str(o.conflict) };
+}
+function str(v) { return typeof v === 'string' ? v : (v == null ? '' : String(v)); }
+/** A place object counts as "present" once it has a name or any rolled field. */
+function siteFilled(s) { return !!(s && (s.name || s.type || s.condition || s.opposition || s.treasure)); }
+function settlementFilled(s) { return !!(s && (s.name || s.type || s.conflict)); }
+
 export function emptyHex(id) {
-  const h = { id, factions: [], notes: '' };
+  const h = { id, factions: [], sites: [], settlements: [], notes: '' };
   HEX_FIELDS.forEach((k) => { if (!(k in h)) h[k] = k === 'canon' ? false : ''; });
   h.id = id;
   return h;
 }
 
-export function hasSite(h) { return !!(h && h.siteType); }
-export function hasSettlement(h) { return !!(h && h.settlementType); }
+export function hasSite(h) { return !!(h && Array.isArray(h.sites) && h.sites.some(siteFilled)); }
+export function hasSettlement(h) { return !!(h && Array.isArray(h.settlements) && h.settlements.some(settlementFilled)); }
 /** A hex is "populated" (worth a file on disk) once it has any surveyed content. */
 export function isPopulated(h) {
   if (!h) return false;
@@ -98,12 +115,19 @@ function yamlList(arr) {
 
 /** Turn a hex record into its Markdown file text. */
 export function serializeHex(h) {
+  const sites = (h.sites || []).map(siteObj).filter(siteFilled);
+  const settlements = (h.settlements || []).map(settlementObj).filter(settlementFilled);
+
   const fm = ['---'];
   HEX_FIELDS.forEach((k) => {
     if (k === 'canon') fm.push(`${k}: ${h.canon ? 'true' : 'false'}`);
     else fm.push(`${k}: ${yamlScalar(h[k])}`);
   });
   fm.push(`factions: ${yamlList(h.factions)}`);
+  // Sites/settlements ride the frontmatter as compact JSON arrays — the source of
+  // truth; the body below is regenerated, human-readable prose.
+  if (sites.length) fm.push(`sites: ${JSON.stringify(sites)}`);
+  if (settlements.length) fm.push(`settlements: ${JSON.stringify(settlements)}`);
   fm.push('---');
 
   const body = [];
@@ -119,17 +143,23 @@ export function serializeHex(h) {
   if (h.encounter) body.push(`**Encounter (Tables D & E):** ${h.encounter}`);
   if (h.discovery) body.push(`**Discovery (Table F):** ${h.discovery}`);
 
-  if (hasSite(h)) {
-    body.push('', '## Site');
-    body.push(`**Type (Table I):** ${h.siteType}`);
-    if (h.siteCondition) body.push(`**Condition (Table J):** ${h.siteCondition}`);
-    if (h.siteOpposition) body.push(`**Opposition (Table K):** ${h.siteOpposition}`);
-    if (h.siteTreasure) body.push(`**Treasure (Table L):** ${h.siteTreasure}`);
+  if (settlements.length) {
+    body.push('', settlements.length > 1 ? '## Settlements' : '## Settlement');
+    settlements.forEach((s, i) => {
+      body.push('', `### ${s.name || 'Settlement ' + (i + 1)}`);
+      if (s.type) body.push(`**Type (Table G):** ${s.type}`);
+      if (s.conflict) body.push(`**Conflict or Hook (Table H):** ${s.conflict}`);
+    });
   }
-  if (hasSettlement(h)) {
-    body.push('', '## Settlement');
-    body.push(`**Type (Table G):** ${h.settlementType}`);
-    if (h.settlementConflict) body.push(`**Conflict or Hook (Table H):** ${h.settlementConflict}`);
+  if (sites.length) {
+    body.push('', sites.length > 1 ? '## Sites' : '## Site');
+    sites.forEach((s, i) => {
+      body.push('', `### ${s.name || 'Site ' + (i + 1)}`);
+      if (s.type) body.push(`**Type (Table I):** ${s.type}`);
+      if (s.condition) body.push(`**Condition (Table J):** ${s.condition}`);
+      if (s.opposition) body.push(`**Opposition (Table K):** ${s.opposition}`);
+      if (s.treasure) body.push(`**Treasure (Table L):** ${s.treasure}`);
+    });
   }
   if (h.factions && h.factions.length) {
     body.push('', `**Factions:** ${h.factions.join(' | ')}`);
@@ -147,6 +177,10 @@ function unquote(v) {
     return s.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
   }
   return s;
+}
+function parseJsonArray(v) {
+  try { const a = JSON.parse(v.trim()); return Array.isArray(a) ? a : []; }
+  catch { return []; }
 }
 function parseList(v) {
   const s = v.trim();
@@ -171,14 +205,25 @@ export function parseHex(text, fallbackId) {
   const m = /^---\n([\s\S]*?)\n---\n?/.exec(src);
   if (!m) { rec.notes = src.trim(); return rec; }
 
+  const legacy = {}; // old flat siteType/settlementType… fields, for back-compat
   m[1].split('\n').forEach((line) => {
     const kv = /^([A-Za-z][A-Za-z0-9]*):\s?(.*)$/.exec(line);
     if (!kv) return;
     const key = kv[1]; const raw = kv[2];
     if (key === 'factions') rec.factions = parseList(raw);
     else if (key === 'canon') rec.canon = /^true$/i.test(raw.trim());
+    else if (key === 'sites') rec.sites = parseJsonArray(raw).map(siteObj);
+    else if (key === 'settlements') rec.settlements = parseJsonArray(raw).map(settlementObj);
+    else if (/^(site|settlement)[A-Z]/.test(key)) legacy[key] = unquote(raw);
     else if (HEX_FIELDS.includes(key)) rec[key] = unquote(raw);
   });
+  // Migrate a legacy single site/settlement (flat scalar fields) into one element.
+  if (!rec.sites.length && (legacy.siteType || legacy.siteCondition || legacy.siteOpposition || legacy.siteTreasure)) {
+    rec.sites = [siteObj({ type: legacy.siteType, condition: legacy.siteCondition, opposition: legacy.siteOpposition, treasure: legacy.siteTreasure })];
+  }
+  if (!rec.settlements.length && (legacy.settlementType || legacy.settlementConflict)) {
+    rec.settlements = [settlementObj({ type: legacy.settlementType, conflict: legacy.settlementConflict })];
+  }
   if (fallbackId && !rec.id) rec.id = fallbackId;
 
   // Notes = everything under the final "## Notes" heading in the body.

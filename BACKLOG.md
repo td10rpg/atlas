@@ -19,7 +19,12 @@
   places / moves / picks it up (any hex, canon included); stored in `atlas.json`.
 - [x] **17. Hex scale** — miles-per-hex control in the HUD with derived area
   (`~0.866·w²` sq mi); persisted in the config.
-- [ ] 3, 4, 5, 6, 7, 8, 9, 12, 15, 18 — see below.
+- [x] **9. Fillable Site/Settlement** — each place has an editable name + editable
+  rolled lines; add rolled or blank; re-roll keeps the name; canon = read-only.
+- [x] **12. Multiple places per hex** — sites/settlements are arrays; stamp adds,
+  inspector removes; map badge shows ×N. File format now stores them as JSON in
+  the frontmatter + `### name` body subsections, with legacy flat files migrated.
+- [ ] 3, 4, 5, 6, 7, 8, 15, 18 — see below.
 
 Assets pulled from `td10rpg/td10` for the remaining items live in `assets/`
 (`the-fort-world-map.png`, `wag-terrain-key.png`). The canonical WAG tool is at
