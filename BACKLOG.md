@@ -88,6 +88,18 @@ map) as general capabilities, with the Hinterlands as the flagship content.
 
 ## Content: reconcile the tables with the canonical WAG
 
+> **Status (2026-08-05):** Tables A–L in `wag.js` have been **swapped to the
+> canonical WAG content** (ported from `td10 → quartz/static/tools/wag.html`).
+> The previous authored Hinterlands flavor is **archived verbatim at the bottom
+> of this file** ("Archived: authored Hinterlands table flavor") — nothing was
+> lost. The hand-curation below is now: walk the archived rows and reintegrate
+> the keepers as per-atlas custom rows (item 4) on top of the canonical tables.
+> Still unported: the encounter **resolve types** (bestiary / faction / dungeon
+> sub-generators) and the extra canonical tables (Tension, Hidden motive, NPC,
+> Faction, Traps, Dungeon size) — those are separate subsystems, not A–L.
+
+The original intent, retained for reference:
+
 All WAG tables currently in `wag.js` (Weather, Feature, Sign, Encounter,
 Discovery, Site/Settlement, terrain, etc.) were written in-voice as a working
 stand-in. Bring in the **canonical WAG document** as the base — but this is a
@@ -592,3 +604,144 @@ Implementation pointers:
   text edits (notes/name) should collapse into one undo step, not one per
   keystroke.
 - Bound the history depth so memory stays sane on big atlases.
+
+---
+
+## Archived: authored Hinterlands table flavor
+
+On **2026-08-05** Tables A–L in `wag.js` were swapped to the canonical WAG
+content. The prior Hinterlands-tinted tables (Glacia / The Fort in the
+Hinterlands — arctic frontier, gold-rush camps, wilderfolk, the thing that
+dreams below) are preserved verbatim here for **hand-curation and selective
+reintegration** as per-atlas custom rows (item 4), per the "merge, not wipe"
+plan above. Format: `Name — description`.
+
+### Table A — Weather (authored)
+1. **Clear and biting** — A hard blue sky; the cold itself is the hazard. Exposed travel taxes the unprepared. *(1)*
+2. **Overcast** — Flat grey light, no shadows. Distances lie and landmarks blur. *(2–3)*
+3. **River fog** — A cold fog off the water; sight drops to a stone’s throw. Ambush and losing the trail both grow likely. *(4)*
+4. **Falling snow** — Steady snow softens sound and buries sign. Tracks made now last only an hour. *(5–6)*
+5. **Cutting wind** — A wind that finds every seam. Fires gutter; a careless watch loses fingers. *(7)*
+6. **Sleet and glaze** — Freezing rain lacquers the world. Every slope becomes a Reflex Challenge. *(8)*
+7. **Whiteout** — Wind-driven snow erases the land. Travel halts or the party scatters; hole up if you can. *(9)*
+8. **False thaw** — A warm, wrong wind rots the ice and wakes the bog. The ground you crossed this morning will not hold tonight. *(10)*
+
+### Table B — Feature (authored: per-terrain flavor)
+The authored Feature table was a kind (1d10: Landmark, Water, Old work, Hazard,
+Resource, Lair sign, Crossing, Vantage, Marker, Anomaly) crossed with a
+**per-terrain flavor bank**. Terrain flavor, by kind:
+
+- **Forest or Jungle** — Landmark: a lightning-split giant of a pine, seen for miles · Water: a black tarn ringed with deadfall · Old work: a trapper’s line of rotted deadfalls · Hazard: a blowdown tangle no horse will cross · Resource: a stand of straight timber and good fur-sign · Lair sign: a den worn into a root-throw, and old bones · Crossing: a game trail worn to bare earth · Vantage: a fire-scar ridge open to the sky · Marker: blazes cut fresh into the bark · Anomaly: a stand where every tree leans the same wrong way
+- **Hills or Mountains** — Landmark: a black-basalt tor that shows above the treeline · Water: a cold spring that never freezes · Old work: a caved adit and a spoil-heap gone to moss · Hazard: a scree slope that shifts underfoot · Resource: quartz float in the talus — color, maybe · Lair sign: a cave mouth, and drag-marks going in · Crossing: a saddle pass, the only way over for a day’s ride · Vantage: a crag that owns the whole valley · Marker: a cairn, lately added to · Anomaly: a hollow that swallows sound
+- **Plains** — Landmark: a lone erratic boulder on the flat · Water: a slough the color of old tea · Old work: a ring of stones where a lodge once stood · Hazard: ground that hides a sink beneath the grass · Resource: good grazing and a herd’s wide trail · Lair sign: a burrow-town and a raptor’s plucking-post · Crossing: a worn track, the long road north · Vantage: a low rise that sees to the horizon · Marker: a surveyor’s stake, claim number burned in · Anomaly: a circle where nothing grows
+- **Swamp or Wetlands** — Landmark: a drowned forest of grey snags · Water: a maze of black channels and quaking mat · Old work: a rotted corduroy road sunk to the axles · Hazard: quaking bog that will not bear weight · Resource: a beaver-works and good pelt-country · Lair sign: a mound of dragged reeds, and a stink · Crossing: a beaver-dam bridge, one misstep from the drink · Vantage: a hummock that rides above the mire · Marker: withies bent into a wilderfolk sign · Anomaly: water that lies still against the current
+- **Ocean or Coast** — Landmark: a sea-stack white with birds · Water: a tide-race between two heads of rock · Old work: a wrecked barge broken on the shingle · Hazard: a cliff of rotten shale above the surf · Resource: a beach of driftwood and a run of fish · Lair sign: a sea-cave and a slick of blood on the rocks · Crossing: a tidal bar passable only at the ebb · Vantage: a headland that watches the whole shore · Marker: a stone beacon, its wood laid ready · Anomaly: a cove the tide never seems to reach
+- **Tundra** — Landmark: a frost-heaved pingo like a buried hill · Water: a thaw-pond skinned with new ice · Old work: a fallen mission cross, half in the snow · Hazard: a field of frost-boils and hidden ice · Resource: a caribou trace and clean windswept moss · Lair sign: a snow-den with a breathing-hole · Crossing: a wind-scoured ridge, the only bare footing · Vantage: a rise that shows the aurora early · Marker: an inukshuk of piled stone, pointing on · Anomaly: a patch of green warmth in the white
+- **Desert** — Landmark: a wind-carved arch of pale stone · Water: a bitter seep, barely drinkable · Old work: a dry sluice and tailings gone to dust · Hazard: a pan of crust over sucking mud · Resource: a vein of color bared by the wind · Lair sign: a burrow under a shelf of rock · Crossing: a wash that is the only shade for miles · Vantage: a butte that owns the barrens · Marker: a heap of bleached bones set as a sign · Anomaly: a stretch the wind refuses to cross
+- **Urban** — Landmark: a black gate and a bell against the cold · Water: a cistern, and a queue for it · Old work: a burned quarter no one has rebuilt · Hazard: a lane where the wrong crew collects a toll · Resource: a market, a forge, a mission poor-box · Lair sign: a cellar door that is watched too closely · Crossing: the one bridge, and the men who hold it · Vantage: a watchtower over the whole works · Marker: a notice-board thick with bounties · Anomaly: a house every dog gives a wide berth
+
+### Table C — Sign or Omen (authored)
+1. **Fresh tracks** — Sign in the new snow, not an hour old, and more of them than there should be. *(1)*
+2. **Carrion birds** — Ravens turning low over the next fold of ground. Something died, or is dying. *(2)*
+3. **Distant smoke** — A thread of smoke where the map shows nothing — a camp, a signal, or a burning. *(3)*
+4. **A horn at dusk** — A long note carries on the cold air. It is answered, once, from another quarter. *(4)*
+5. **Blood on snow** — A dragging trail of red leads off the path and does not come back. *(5)*
+6. **Left offerings** — A shrine or a stone with fresh gifts — someone came through recently, and was afraid. *(6)*
+7. **A painted mark** — A Vargoth glyph in ochre, matching no known band. It is coordinating with something. *(7)*
+8. **The game gone** — No birds, no tracks, no sound. The country has emptied itself ahead of you. *(8)*
+9. **The aurora wrong** — The lights move against the wind and hold a shape too long. Old folk look away. *(9)*
+10. **A child’s boot** — One small boot, alone in the waste, laces still tied. There is no other sign at all. *(10)*
+
+### Table E — Encounter (authored: Hinterlands cast)
+**Common (all terrains):** a Fort Caspar patrol, cold and short-tempered · Drevin hunters, watchful, not yet decided about you · Karvi trappers running a trapline, willing to trade · a lone peddler with a sledge and too much to say · prospectors, half-starved and jealous of their claim · gang toughs (the Frostmelt Boys) collecting a "toll"
+
+**Per-terrain:**
+- **Forest or Jungle** — a dire wolf pack shadowing the party · a wolverine on a kill, and it will not yield · a Vargoth scouting-party painting trees
+- **Hills or Mountains** — a white bear come down to hunt · a rockslide, and something that started it · a thing from the Cold Caverns, testing the light
+- **Plains** — a herd stampeding ahead of an unseen driver · raptors mantling a fresh kill · a Vargoth outrider on a stolen horse
+- **Swamp or Wetlands** — a hunting cat in the reeds · leeches, fever, and a body in the water · smugglers of the Black Sluice moving cargo
+- **Ocean or Coast** — a wrecked crew, desperate and armed · something in the surf that shouldn’t swim · a revenue-boat pretending to be friendly
+- **Tundra** — a starving pack driven ahead of the cold · pilgrims to Mons Albus, lost and freezing · a Dreamer-touched sleeper walking in the waste
+- **Desert** — a rattling nest of stone-adders · a claim-jumper crew watching the wash · a mirage-thing that is not a mirage
+- **Urban** — Hollander’s Crew running a shakedown · a Fort press-gang looking for bodies · a preacher and the mob he has half-turned
+
+*(Table D — Encounter check — was unchanged by the swap and stays as-is.)*
+
+### Table F — Discovery (authored)
+1. **A cache** — A cold-cellar or hollow tree holding supplies — food for 1d5+2 days, and someone’s intent to return. *(1)*
+2. **A body and a story** — A dead traveler, and enough on them to say how they died and who might care. *(2)*
+3. **A map fragment** — A torn chart marking a place off the known trails, with one word underlined. *(3)*
+4. **A survivor** — Someone alive who should not be — half-frozen, half-mad, and carrying news. *(4)*
+5. **A claim marker** — A staked claim, freshly worked, its owner nowhere in sight. *(5)*
+6. **A relic** — A church-thing lost in the wild; the reliquary at the Fort would pay to have it back. *(6)*
+7. **Gold color** — Dust in the gravel — 1d10×10 gp of it, and the question of who else knows. *(7)*
+8. **A Vargoth work** — A painted shrine to the thing below, lately used, the paint not yet dry. *(8)*
+9. **A sleeper** — One who heard the Dreamer’s Call and lay down in the snow, breathing still. *(9)*
+10. **Nothing but cold** — Whatever was here is gone, and took the warmth with it. The party has lost the day. *(10)*
+
+### Table G — Settlement type (authored)
+1. **Barge landing** — A river stop of pilings and tar — a store, a saloon, and rough men off the water. *(1)*
+2. **Trapper camp** — A cluster of cabins and drying-racks; furs are law and coin here. *(2–3)*
+3. **Mining claim** — A sluice, a tent town, and the fever of easy gold that is never easy. *(4–5)*
+4. **Mission station** — A cross, a bell, and a handful of the faithful holding a line against the dark. *(6)*
+5. **Roadhouse** — A waystation on the long trail — beds, oats, and every rumor for a hundred miles. *(7)*
+6. **Fort outpost** — A palisade and a few soldiers of Fort Caspar, under-supplied and watchful. *(8)*
+7. **Wilderfolk village** — A Drevin or Karvi settlement, guarded, that decides daily whether you are welcome. *(9)*
+8. **Ghost camp** — A settlement gone silent — doors open, fires cold, and no bodies to explain it. *(10)*
+
+### Table H — Settlement conflict (authored)
+1. **Claim dispute** — Two parties swear the same ground is theirs, and both have hired guns. *(1)*
+2. **Missing persons** — People vanish in the night. The elders blame wolves; the elders are lying. *(2)*
+3. **Cut off** — Weather or a downed bridge has sealed the place in. Stores are running short. *(3)*
+4. **A lynch mood** — A stranger is blamed for the town’s troubles, and a rope is being readied. *(4)*
+5. **Sickness** — A fever moves house to house. The healer is overworked, or afraid. *(5)*
+6. **Preacher and gang** — A hard preacher and a harder crew both mean to own the settlement’s soul. *(6)*
+7. **Tribute demanded** — The Vargoth have named a price in goods or blood, due by the next dark. *(7)*
+8. **A strike** — Someone hit color, and half the town means to jump the claim before dawn. *(8)*
+9. **A stranger stays** — A newcomer who will not leave, and around whom the small accidents gather. *(9)*
+10. **A gathering** — A wedding, a funeral, a hanging — everyone is in one place, and so is the trouble. *(10)*
+
+### Table I — Site type (authored)
+1. **Old redoubt** — A ruined fort or blockhouse from an earlier, failed push into the country. *(1)*
+2. **Mine or adit** — A worked hole in the earth, timbered and dark, that someone stopped digging. *(2)*
+3. **Cavern mouth** — An opening into the Cold Caverns — the dark below is a region, not a room. *(3)*
+4. **Shrine** — A holy place, or an unholy one; the cold keeps its offerings fresh. *(4)*
+5. **Barrow field** — Graves under the snow, older than the Fort, and not all of them quiet. *(5)*
+6. **Wreck** — A riverboat or sledge-train broken and abandoned, cargo maybe still aboard. *(6)*
+7. **Watchtower** — A lone tower that once watched this ground, now held by whatever wants the view. *(7)*
+8. **Trapper’s cabin** — A single cabin far from any help, its last tenant’s story still on the walls. *(8)*
+9. **Standing stones** — A ring of raised stones the wilderfolk will not name and will not approach. *(9)*
+10. **A sinkhole** — A throat in the ground going straight down into the black and the cold. *(10)*
+
+### Table J — Site condition (authored)
+1. **Occupied** — Intact and held — there is someone, or something, home. *(1–2)*
+2. **Empty** — Intact but abandoned; it waits, and it is not as empty as it looks. *(3)*
+3. **Still warm** — Just left — embers, breath-frost, the sense of having missed them by an hour. *(4)*
+4. **Ruined** — Fallen in and open to the sky; what it held is scattered or buried. *(5–6)*
+5. **Snowed under** — Half-collapsed and choked with drift — digging in is the first challenge. *(7)*
+6. **Flooded** — Ice-water fills the lower works; footing and cold both threaten. *(8)*
+7. **Defiled** — Marked by dark magic — a permanent -2 Aspect pall hangs over the place. *(9)*
+8. **Sealed** — Deliberately shut, from the inside or the out, and for a reason. *(10)*
+
+### Table K — Opposition (authored)
+1. **Only the place** — No guard but the cold, the dark, and the ways it can kill you. *(1)*
+2. **A predator** — A single hungry beast has made the site its own. *(2)*
+3. **Vargoth hold it** — A hostile wilderfolk party keeps the place, in service to the thing below. *(3)*
+4. **A gang crew** — Outlaws — the Red Ledger, the Black Sluice — using it as a den. *(4)*
+5. **The Dreamer’s own** — Sleepers and worse, drawn here by the Call and no longer wholly people. *(5)*
+6. **A rival party** — Another expedition wants exactly what the party wants, and got here first. *(6)*
+7. **Traps** — The approach is laid with deadfalls and worse; the place defends itself. *(7)*
+8. **Wilderfolk claim** — The Drevin or Karvi hold it sacred and will bargain, or not. *(8)*
+9. **A thing from below** — Something climbed up out of the Cold Caverns and stayed. *(9)*
+10. **One who needs help** — A captive or castaway begging aid — and it is even money whether that is true. *(10)*
+
+### Table L — Treasure (authored)
+1. **Nothing of worth** — Picked clean already, or never worth the trip. The cold was the only reward. *(1–2)*
+2. **Supplies** — Stores and food — enough for 1d5+2 days and a warmer night. *(3)*
+3. **Furs and goods** — Trade-worth in pelts and gear; heavy to carry, easy to sell. *(4)*
+4. **Gold dust** — Color in a poke — 1d10×10 gp of dust, and the trouble that follows it. *(5)*
+5. **A coin cache** — Buried silver, 1d10×5 sp, and a reason it was hidden. *(6)*
+6. **A useful map** — A chart to somewhere the party has not been and now cannot resist. *(7)*
+7. **A relic** — A holy object the Fort’s reliquary would reward — or that should never have been moved. *(8)*
+8. **Quality gear** — A weapon or tool of real make (+1 where it counts), better than anything in camp. *(9)*
+9. **A cursed artifact** — Black-ice, Dreamer-touched — worth a fortune and a slow doom to the one who keeps it. *(10)*
