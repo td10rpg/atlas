@@ -7,12 +7,15 @@
 // System Access API. No dependencies, no build step.
 
 import {
-  createStarterAtlas, createAtlas, getHex, ensureHex, applyTerrainIcon,
-  REGIONS, generateHex, rollTerrain, normalizeConfig, loadHexes,
+  createStarterAtlas, createAtlas, createRandomAtlas, getHex, ensureHex, applyTerrainIcon,
+  REGIONS, generateHex, rollTerrain, rollTerrainForHex, normalizeConfig, loadHexes,
 } from './map.js';
-import { TERRAINS, rerollField, rollSite, rollSettlement, rollSiteFields, rollSettlementFields } from './wag.js';
 import {
-  hexId, hexCenter, hexPoints, boardSize, isPopulated, hasSite, hasSettlement,
+  TERRAINS, rerollField, rollSite, rollSettlement, rollSiteFields, rollSettlementFields,
+  EDITABLE_TABLES, defaultTable, setTableOverrides,
+} from './wag.js';
+import {
+  hexId, hexCenter, hexPoints, boardSize, neighbors, isPopulated, hasSite, hasSettlement,
   emptyHex, emptySite, emptySettlement, serializeHex,
 } from './hex.js';
 import * as store from './storage.js';
@@ -153,6 +156,7 @@ function startInMemory(msg) {
 
 function afterLoad() {
   removeLanding();
+  setTableOverrides(S.atlas.customTables || {}); // apply per-atlas WAG table edits (backlog 4)
   renderShell();
   renderMap();
   fitView();
@@ -180,6 +184,8 @@ function renderConn() {
       ? `<button class="btn small" data-action="new-folder">New folder</button>` +
         `<button class="btn small" data-action="open-folder">Open folder</button>`
       : '') +
+    `<button class="btn small ghost" data-action="import-map" title="Import an image and convert it to native hexes">Map image</button>` +
+    `<button class="btn small ghost" data-action="random" title="Generate a random terrain map (content stays blank)">Random map</button>` +
     `<button class="btn small ghost" data-action="theme" title="Theme: auto / light / dark">${THEME_LABEL[S.theme]}</button>` +
     `<button class="btn small ghost" data-action="export">Export</button>` +
     `<button class="btn small ghost" data-action="import">Import</button>`;
@@ -447,6 +453,14 @@ function parseId(id) {
   return { col: parseInt(id.slice(0, 2), 10) - 1, row: parseInt(id.slice(2), 10) - 1 };
 }
 
+/** The terrains of a hex's already-surveyed neighbours (for neighbour-aware rolls). */
+function neighbourTerrainsOf(id) {
+  const { col, row } = parseId(id);
+  return neighbors(col, row)
+    .map((n) => { const h = getHex(S.atlas, hexId(n.col, n.row)); return h && h.terrain ? h.terrain : null; })
+    .filter(Boolean);
+}
+
 // ---- view (pan / zoom) ----------------------------------------------------
 
 function applyView() {
@@ -703,7 +717,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [] },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} },
       hexes,
     }));
   } catch { /* quota or private mode — ignore */ }
@@ -734,6 +748,7 @@ function snapshot() {
   return {
     name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles,
     markers: clone(S.atlas.markers || []), rivers: clone(S.atlas.rivers || []),
+    customTables: clone(S.atlas.customTables || {}),
     hexes: clone(S.atlas.hexes || {}),
   };
 }
@@ -755,6 +770,7 @@ function applySnapshot(snap) {
   const oldHexes = S.atlas.hexes || {};
   S.atlas.name = snap.name; S.atlas.cols = snap.cols; S.atlas.rows = snap.rows; S.atlas.hexMiles = snap.hexMiles;
   S.atlas.markers = clone(snap.markers); S.atlas.rivers = clone(snap.rivers);
+  S.atlas.customTables = clone(snap.customTables || {}); setTableOverrides(S.atlas.customTables);
   const newHexes = clone(snap.hexes);
   S.atlas.hexes = newHexes;
   if (S.dir) { // write only the hex files that changed; delete removed ones
@@ -817,7 +833,7 @@ function renderInspector() {
       ? (has ? `${escapeHtml(h.feature)}${h.featureDesc ? ` — <em>${escapeHtml(h.featureDesc)}</em>` : ''}` : '—')
       : (has ? escapeHtml(h[key]) : '—');
     return `<div class="wagline ${has ? '' : 'empty'}">` +
-      `<div class="wl-head"><span class="wl-tag">${tag}</span>` +
+      `<div class="wl-head">${tableTag(tag, TABLE_FOR[key])}` +
       `<span class="wl-roll"><button class="iconbtn" data-action="reroll" data-field="${key}" title="Re-roll">${dieGlyph({ size: 15 })}</button></span></div>` +
       `<div class="wl-text">${text}</div></div>`;
   };
@@ -874,9 +890,17 @@ function renderInspector() {
 // card per entry: an editable name, editable rolled lines, a die to re-roll the
 // lines (keeps the name), and Remove. Add either a rolled one or a blank to fill
 // in by hand. On a canon hex everything is read-only.
+// Which editable table (backlog 4) backs each survey line / place field. Lines
+// whose tag maps to a table get a clickable, editable label.
+const TABLE_FOR = { weather: 'weather', sign: 'sign', discovery: 'discovery' };
+function tableTag(label, tableKey) {
+  return tableKey
+    ? `<button class="wl-tag wl-tag-btn" data-action="edit-table" data-table="${tableKey}" title="Edit this table — add your own results">${label}</button>`
+    : `<span class="wl-tag">${label}</span>`;
+}
 const PLACE_FIELDS = {
-  site: [['Type · Table I', 'type'], ['Condition · Table J', 'condition'], ['Opposition · Table K', 'opposition'], ['Treasure · Table L', 'treasure']],
-  settlement: [['Type · Table G', 'type'], ['Conflict or Hook · Table H', 'conflict']],
+  site: [['Type · Table I', 'type', 'siteType'], ['Condition · Table J', 'condition', 'siteCondition'], ['Opposition · Table K', 'opposition', 'opposition'], ['Treasure · Table L', 'treasure', 'treasure']],
+  settlement: [['Type · Table G', 'type', 'settlementType'], ['Conflict or Hook · Table H', 'conflict', 'settlementConflict']],
 };
 function placesBlock(h, kind, locked) {
   const arr = kind === 'site' ? (h.sites || []) : (h.settlements || []);
@@ -889,8 +913,8 @@ function placesBlock(h, kind, locked) {
     const rm = locked ? '' : `<button class="iconbtn danger" data-action="rm-${kind}" data-idx="${i}" title="Remove">✕</button>`;
     const name = `<input class="place-name" data-place="${kind}" data-idx="${i}" data-field="name" value="${escapeHtml(s.name || '')}" placeholder="${Label} name" ${locked ? 'disabled' : ''}/>`;
     let lines = '';
-    PLACE_FIELDS[kind].forEach(([lab, f]) => {
-      lines += `<div class="place-line"><span class="wl-tag">${lab}</span>` +
+    PLACE_FIELDS[kind].forEach(([lab, f, tkey]) => {
+      lines += `<div class="place-line">${tableTag(lab, tkey)}` +
         `<textarea class="place-field" rows="2" data-place="${kind}" data-idx="${i}" data-field="${f}" placeholder="—" ${locked ? 'readonly' : ''}>${escapeHtml(s[f] || '')}</textarea></div>`;
     });
     cards += `<div class="subblock place"><div class="place-head">${name}<span class="sp">${die}${rm}</span></div>${lines}</div>`;
@@ -930,6 +954,7 @@ function onInspectorClick(e) {
   if (tab) { S.notesTab = tab; document.querySelectorAll('.notes-head .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab)); syncNotesTab(); return; }
 
   const act = btn.dataset.action;
+  if (act === 'edit-table') { openTableEditor(btn.dataset.table); return; } // global; allowed on canon too
   const h = getHex(S.atlas, id) || emptyHex(id);
   const locked = !!h.canon;
   // On a canon hex only the WAG survey lines and notes may change — refuse every
@@ -939,14 +964,14 @@ function onInspectorClick(e) {
   switch (act) {
     case 'generate': {
       const hx = ensureHex(S.atlas, id);
-      if (!hx.terrain) hx.terrain = rollTerrain(hx.region || 'Unassigned');
+      if (!hx.terrain) hx.terrain = rollTerrainForHex(hx.region || 'Unassigned', neighbourTerrainsOf(id));
       Object.assign(hx, generateHex(hx.terrain)); // survey lines only; never touches places
       if (!locked) applyTerrainIcon(hx);
       commit(id); break;
     }
     case 'roll-terrain': {
       const hx = ensureHex(S.atlas, id);
-      hx.terrain = rollTerrain(hx.region || 'Unassigned');
+      hx.terrain = rollTerrainForHex(hx.region || 'Unassigned', neighbourTerrainsOf(id));
       applyTerrainIcon(hx);
       commit(id); break;
     }
@@ -1082,6 +1107,8 @@ function wireEvents() {
     if (a === 'open-folder') openFolder();
     if (a === 'export') exportBundle();
     if (a === 'import') importInput.click();
+    if (a === 'random') randomMap();
+    if (a === 'import-map') pickMapImage();
   });
 
   nameInput.addEventListener('input', () => {
@@ -1094,6 +1121,8 @@ function wireEvents() {
   importInput.addEventListener('change', onImportFile);
 
   document.addEventListener('keydown', (e) => {
+    // Escape closes the table editor even from within its inputs.
+    if (e.key === 'Escape' && $('#modal')) { closeModal(); return; }
     // Undo / redo work everywhere except inside a text field (which keeps native undo).
     if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
       if (e.target.matches('input,textarea,select')) return;
@@ -1105,7 +1134,7 @@ function wireEvents() {
     const map = { v: 'inspect', t: 'terrain', r: 'region', w: 'river', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
     if (map[e.key]) setTool(map[e.key]);
     if (e.key === 'g' && S.selected) { onInspectorClick({ target: mkFakeBtn('generate') }); }
-    if (e.key === 'Escape') { if (S.riverDraft) finishRiver(); else setSelected(null); }
+    if (e.key === 'Escape') { if ($('#modal')) closeModal(); else if (S.riverDraft) finishRiver(); else setSelected(null); }
   });
 }
 function mkFakeBtn(action) {
@@ -1126,6 +1155,13 @@ async function newFolder() {
     if (err && err.name === 'AbortError') return;
     toast('Could not create folder: ' + err.message, true);
   }
+}
+async function randomMap() {
+  if (!confirm(`Generate a new random terrain map (${S.atlas.cols}×${S.atlas.rows})?\n\nThis replaces the current atlas. Terrain is filled in coherently; every hex's survey content stays blank for you to roll.`)) return;
+  S.atlas = createRandomAtlas(S.atlas.cols, S.atlas.rows);
+  if (S.dir) { try { await store.saveAll(S.dir, S.atlas); } catch (err) { toast('Could not save: ' + err.message, true); } }
+  afterLoad();
+  toast('Random terrain map generated.');
 }
 async function openFolder() {
   try {
@@ -1150,7 +1186,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [] }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1220,6 +1256,168 @@ function showLanding(opts) {
   });
 }
 function removeLanding() { const l = $('#landing'); if (l) l.remove(); }
+
+// ---- WAG table editor (backlog 4) -----------------------------------------
+// Clicking a result card's table label opens this. Edit rows, add your own, or
+// reset to default; changes are per-atlas (atlas.json) and feed straight into
+// rolling. New rows weigh 1 (reachable) while default rows keep their 1d10 odds.
+let tableEdit = null; // { key, rows:[{name,desc}] } while open, else null
+let tableTimer = null;
+
+function tableLabel(key) { return (EDITABLE_TABLES.find((t) => t.key === key) || {}).label || key; }
+
+function openTableEditor(key) {
+  if (!EDITABLE_TABLES.some((t) => t.key === key)) return;
+  const cur = S.atlas.customTables && S.atlas.customTables[key];
+  const rows = (Array.isArray(cur) && cur.length ? cur : defaultTable(key)).map((r) => ({ name: r.name || '', desc: r.desc || '' }));
+  tableEdit = { key, rows };
+  renderTableModal();
+}
+function renderTableModal() {
+  let el = $('#modal');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'modal'; el.className = 'modal';
+    document.body.appendChild(el);
+    el.addEventListener('click', onModalClick);
+    el.addEventListener('input', onModalInput);
+  }
+  if (!tableEdit) { el.remove(); return; }
+  const isCustom = !!(S.atlas.customTables && S.atlas.customTables[tableEdit.key]);
+  const rows = tableEdit.rows.map((r, i) =>
+    `<div class="trow"><span class="tnum">${i + 1}</span>` +
+    `<input class="tname" data-i="${i}" data-f="name" value="${escapeHtml(r.name)}" placeholder="Result name" />` +
+    `<textarea class="tdesc" data-i="${i}" data-f="desc" rows="2" placeholder="Description (optional)">${escapeHtml(r.desc)}</textarea>` +
+    `<button class="iconbtn danger" data-mact="del" data-i="${i}" title="Delete row">✕</button></div>`).join('');
+  el.innerHTML =
+    `<div class="modal-card" role="dialog" aria-label="Edit table">` +
+      `<div class="modal-head"><h3>${escapeHtml(tableLabel(tableEdit.key))}${isCustom ? ' <span class="custom-tag">customised</span>' : ''}</h3>` +
+      `<button class="btn small" data-mact="close">Done</button></div>` +
+      `<p class="modal-note">Edit results or add your own — they feed straight into rolling and re-rolling, and are saved with this atlas.</p>` +
+      `<div class="trows">${rows || '<p class="modal-note">No rows — add one.</p>'}</div>` +
+      `<div class="modal-foot"><button class="btn small" data-mact="add">＋ Add row</button>` +
+      `<button class="btn small ghost" data-mact="reset" title="Restore the built-in table">Reset to default</button></div>` +
+    `</div>`;
+}
+function onModalClick(e) {
+  const b = e.target.closest('[data-mact]');
+  const act = b && b.dataset.mact;
+  // import-map modal actions (no tableEdit)
+  if (act === 'imp-cancel') { importImg = null; const el = $('#modal'); if (el) el.remove(); return; }
+  if (act === 'imp-go') { doImportMap(+($('#imp-cols') ? $('#imp-cols').value : 26) || 26); return; }
+  if (e.target.id === 'modal') { if (importImg) { importImg = null; e.currentTarget.remove(); } else closeModal(); return; } // backdrop
+  if (!b || !tableEdit) return;
+  if (act === 'close') { closeModal(); return; }
+  if (act === 'add') { tableEdit.rows.push({ name: '', desc: '' }); commitTable(); renderTableModal(); return; }
+  if (act === 'del') { tableEdit.rows.splice(+b.dataset.i, 1); commitTable(); renderTableModal(); return; }
+  if (act === 'reset') { tableEdit.rows = defaultTable(tableEdit.key).map((r) => ({ name: r.name, desc: r.desc })); commitTable(); renderTableModal(); }
+}
+function onModalInput(e) {
+  const t = e.target;
+  if (!tableEdit || t.dataset.i == null || !t.dataset.f) return;
+  const i = +t.dataset.i;
+  if (tableEdit.rows[i]) { tableEdit.rows[i][t.dataset.f] = t.value; clearTimeout(tableTimer); tableTimer = setTimeout(commitTable, 300); }
+}
+function commitTable() {
+  clearTimeout(tableTimer); tableTimer = null;
+  if (!tableEdit) return;
+  const key = tableEdit.key;
+  const rows = tableEdit.rows.map((r) => ({ name: (r.name || '').trim(), desc: (r.desc || '').trim() })).filter((r) => r.name || r.desc);
+  const def = defaultTable(key).map((r) => ({ name: r.name, desc: r.desc }));
+  S.atlas.customTables = S.atlas.customTables || {};
+  if (!rows.length || JSON.stringify(rows) === JSON.stringify(def)) delete S.atlas.customTables[key];
+  else S.atlas.customTables[key] = rows;
+  setTableOverrides(S.atlas.customTables);
+  persistConfig();
+  recordChange();
+}
+function closeModal() {
+  if (tableTimer) commitTable();
+  tableEdit = null;
+  const el = $('#modal'); if (el) el.remove();
+  renderInspector(); // refresh the "customised" hints on the tags
+}
+
+// ---- import a map image → native hexes (backlog 6) ------------------------
+// Sample the image per hex and give each hex the nearest terrain by colour. A
+// general version of the Hinterlands conversion (scripts/gen-seed.mjs): terrain
+// only, content blank, refine with the paint brush after. Reference palette is
+// the WAG terrain-key hues; unmatched-dark (ink lines) leaves a hex blank.
+const IMPORT_PALETTE = [
+  { rgb: [110, 154, 154], t: 'Ocean or Coast' }, { rgb: [63, 121, 176], t: 'Ocean or Coast' },
+  { rgb: [79, 143, 74], t: 'Forest or Jungle' }, { rgb: [40, 90, 50], t: 'Forest or Jungle' },
+  { rgb: [159, 191, 99], t: 'Plains' }, { rgb: [120, 160, 90], t: 'Plains' },
+  { rgb: [138, 106, 69], t: 'Hills or Mountains' }, { rgb: [150, 150, 150], t: 'Hills or Mountains' },
+  { rgb: [217, 192, 127], t: 'Desert' }, { rgb: [169, 196, 214], t: 'Tundra' },
+  { rgb: [245, 245, 245], t: 'Plains' }, { rgb: [20, 20, 20], t: '' },
+];
+function classifyColour(r, g, b) {
+  let best = IMPORT_PALETTE[0], bd = Infinity;
+  for (const p of IMPORT_PALETTE) { const d = (p.rgb[0] - r) ** 2 + (p.rgb[1] - g) ** 2 + (p.rgb[2] - b) ** 2; if (d < bd) { bd = d; best = p; } }
+  return best.t;
+}
+let importImg = null;
+function pickMapImage() {
+  const inp = document.createElement('input');
+  inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = () => {
+    const file = inp.files && inp.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => openImportModal(img);
+    img.onerror = () => toast('Could not read that image', true);
+    img.src = URL.createObjectURL(file);
+  };
+  inp.click();
+}
+function openImportModal(img) {
+  importImg = img;
+  let el = $('#modal');
+  if (!el) { el = document.createElement('div'); el.id = 'modal'; el.className = 'modal'; document.body.appendChild(el); el.addEventListener('click', onModalClick); el.addEventListener('input', onModalInput); }
+  el.innerHTML =
+    `<div class="modal-card"><div class="modal-head"><h3>Import map → hexes</h3><button class="btn small" data-mact="imp-cancel">Cancel</button></div>` +
+    `<p class="modal-note">Each hex is sampled and given the nearest terrain — teal → coast, greens → forest / plains, brown &amp; grey → hills, tan → desert, pale blue → tundra. Survey content stays blank; refine terrain with the paint brush afterward.</p>` +
+    `<div style="padding:10px 18px;text-align:center"><img id="imp-preview" alt="map preview" style="max-width:100%;max-height:42vh;border:1px solid var(--line);border-radius:8px" /></div>` +
+    `<div class="modal-foot"><label>Columns <input type="number" id="imp-cols" min="4" max="60" value="26" style="width:56px" /></label>` +
+    `<button class="btn primary" data-mact="imp-go">Convert to hexes</button></div></div>`;
+  el.querySelector('#imp-preview').src = img.src;
+}
+function convertImageToAtlas(img, cols) {
+  const maxW = 1000, scale = Math.min(1, maxW / img.naturalWidth);
+  const W = Math.max(1, Math.round(img.naturalWidth * scale)), H = Math.max(1, Math.round(img.naturalHeight * scale));
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d'); ctx.drawImage(img, 0, 0, W, H);
+  const data = ctx.getImageData(0, 0, W, H).data;
+  cols = Math.max(4, Math.min(60, cols | 0));
+  const rows = Math.max(2, Math.min(60, Math.round(cols * 0.8660254 * H / W)));
+  const size = 10, bw = size * 1.5 * (cols - 1) + size * 3, bh = size * Math.sqrt(3) * (rows + 0.5) + size;
+  const at = (x, y) => { const i = (y * W + x) * 4; return [data[i], data[i + 1], data[i + 2]]; };
+  const a = createAtlas(); a.name = 'Imported Map'; a.cols = cols; a.rows = rows;
+  const hexes = {};
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const ct = hexCenter(c, r, size);
+      const ix = Math.min(W - 1, Math.max(0, Math.round(ct.x / bw * W))), iy = Math.min(H - 1, Math.max(0, Math.round(ct.y / bh * H)));
+      let R = 0, G = 0, B = 0, n = 0;
+      for (let dx = -2; dx <= 2; dx += 2) for (let dy = -2; dy <= 2; dy += 2) {
+        const [rr, gg, bb] = at(Math.min(W - 1, Math.max(0, ix + dx)), Math.min(H - 1, Math.max(0, iy + dy))); R += rr; G += gg; B += bb; n++;
+      }
+      const terr = classifyColour(R / n, G / n, B / n);
+      if (!terr) continue;
+      const id = hexId(c, r), h = emptyHex(id); h.terrain = terr; applyTerrainIcon(h); hexes[id] = h;
+    }
+  }
+  a.hexes = hexes;
+  return a;
+}
+async function doImportMap(cols) {
+  const img = importImg; importImg = null;
+  const el = $('#modal'); if (el) el.remove();
+  if (!img) return;
+  S.atlas = convertImageToAtlas(img, cols);
+  if (S.dir) { try { await store.saveAll(S.dir, S.atlas); } catch (e) { toast('Could not save: ' + e.message, true); } }
+  afterLoad();
+  toast(`Imported → ${Object.keys(S.atlas.hexes).length} hexes.`);
+}
 
 // ---- toast + small utils --------------------------------------------------
 

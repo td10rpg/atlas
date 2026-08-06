@@ -74,6 +74,31 @@ export function rollTerrain(regionName) {
   return pick(regionByName(regionName).prefer);
 }
 
+// Neighbour-aware terrain roll (backlog 5): a hex's terrain is biased toward the
+// terrains of its already-revealed neighbours, so ranges and coasts read as
+// continuous country rather than confetti. The base weighting is the region's
+// prefer list; each neighbour adds NEIGHBOUR_BIAS to its own terrain.
+//
+// NOTE: NEIGHBOUR_BIAS and this blend are a PLACEHOLDER. The canonical WAG
+// terrain-generation table should replace these weights (see BACKLOG item 5); the
+// numbers here are wiring, not invented canon. Once the editable-tables work
+// (item 4) can hold a terrain table, point this at it.
+const NEIGHBOUR_BIAS = 4;
+export function rollTerrainForHex(regionName, neighbourTerrains = []) {
+  const weights = {};
+  regionByName(regionName).prefer.forEach((t) => { weights[t] = (weights[t] || 0) + 1; });
+  neighbourTerrains.filter(Boolean).forEach((t) => {
+    if (t === 'Urban') return;            // towns don't seed surrounding terrain
+    weights[t] = (weights[t] || 0) + NEIGHBOUR_BIAS;
+  });
+  const entries = Object.entries(weights);
+  if (!entries.length) return rollTerrain(regionName);
+  const total = entries.reduce((s, [, w]) => s + w, 0);
+  let r = Math.random() * total;
+  for (const [t, w] of entries) { r -= w; if (r <= 0) return t; }
+  return entries[entries.length - 1][0];
+}
+
 // ---- Table A: Weather -----------------------------------------------------
 // Arctic frontier weather — Alaska/Yukon. The description carries the play effect.
 
@@ -324,21 +349,65 @@ export const TREASURE = [
 // be auto-set upstream; everything else follows the WAG play loop. Sites and
 // settlements are only rolled when asked for (they're the discovered layer).
 
+// ---- editable tables (backlog 4) ------------------------------------------
+// The banded {name, desc} tables can be overridden per-atlas. The app registers
+// overrides via setTableOverrides; rolls read the effective table (override or
+// default) and weight rows by band width (default rows keep their 1d10 odds; a
+// user-added row, having no band, weighs 1 and is reachable).
+
+export const EDITABLE_TABLES = [
+  { key: 'weather', label: 'Weather · Table A' },
+  { key: 'sign', label: 'Sign or Omen · Table C' },
+  { key: 'discovery', label: 'Discovery · Table F' },
+  { key: 'settlementType', label: 'Settlement Type · Table G' },
+  { key: 'settlementConflict', label: 'Settlement Conflict · Table H' },
+  { key: 'siteType', label: 'Site Type · Table I' },
+  { key: 'siteCondition', label: 'Site Condition · Table J' },
+  { key: 'opposition', label: 'Opposition · Table K' },
+  { key: 'treasure', label: 'Treasure · Table L' },
+];
+const DEFAULT_TABLES = {
+  weather: WEATHER, sign: SIGN, discovery: DISCOVERY,
+  settlementType: SETTLEMENT_TYPE, settlementConflict: SETTLEMENT_CONFLICT,
+  siteType: SITE_TYPE, siteCondition: SITE_CONDITION, opposition: OPPOSITION, treasure: TREASURE,
+};
+/** The default rows of a table as plain {name, desc} (for the editor). */
+export function defaultTable(key) {
+  return (DEFAULT_TABLES[key] || []).map((r) => ({ name: r.name, desc: r.desc }));
+}
+let OVERRIDES = {};
+/** Register per-atlas table overrides: { tableKey: [{name, desc}, …] }. */
+export function setTableOverrides(o) { OVERRIDES = (o && typeof o === 'object') ? o : {}; }
+function effTable(key) {
+  const o = OVERRIDES[key];
+  return (Array.isArray(o) && o.length) ? o : (DEFAULT_TABLES[key] || []);
+}
+function weightedRow(rows) {
+  if (!rows.length) return { name: '', desc: '' };
+  const w = rows.map((r) => (Number.isFinite(r.lo) && Number.isFinite(r.hi)) ? (r.hi - r.lo + 1) : 1);
+  const total = w.reduce((s, x) => s + x, 0) || 1;
+  let r = Math.random() * total;
+  for (let i = 0; i < rows.length; i++) { r -= w[i]; if (r <= 0) return rows[i]; }
+  return rows[rows.length - 1];
+}
+/** Roll a banded table by key (honouring overrides) and return "Name — desc". */
+function rollLine(key) {
+  const row = weightedRow(effTable(key));
+  return row.desc ? `${row.name} — ${row.desc}` : row.name;
+}
+
 export function generateHex(terrainKey) {
   const feature = rollFeature(terrainKey);
   const enc = rollEncounter(terrainKey);
-  const weather = rollTable(WEATHER);
-  const sign = rollTable(SIGN);
-  const discovery = rollTable(DISCOVERY);
 
   return {
     terrain: terrainKey,
-    weather: `${weather.name} — ${weather.desc}`,
+    weather: rollLine('weather'),
     feature: feature.name,
     featureDesc: feature.desc,
-    sign: `${sign.name} — ${sign.desc}`,
+    sign: rollLine('sign'),
     encounter: encounterText(enc),
-    discovery: `${discovery.name} — ${discovery.desc}`,
+    discovery: rollLine('discovery'),
     generatedAt: new Date().toISOString(),
   };
 }
@@ -353,23 +422,17 @@ function encounterText(enc) {
 // A place is { name, ...rolled fields }. The name is the author's; rollSiteFields /
 // rollSettlementFields roll only the mechanical lines (so a re-roll keeps the name).
 export function rollSiteFields() {
-  const type = rollTable(SITE_TYPE);
-  const cond = rollTable(SITE_CONDITION);
-  const opp = rollTable(OPPOSITION);
-  const treas = rollTable(TREASURE);
   return {
-    type: `${type.name} — ${type.desc}`,
-    condition: `${cond.name} — ${cond.desc}`,
-    opposition: `${opp.name} — ${opp.desc}`,
-    treasure: `${treas.name} — ${treas.desc}`,
+    type: rollLine('siteType'),
+    condition: rollLine('siteCondition'),
+    opposition: rollLine('opposition'),
+    treasure: rollLine('treasure'),
   };
 }
 export function rollSettlementFields() {
-  const type = rollTable(SETTLEMENT_TYPE);
-  const conflict = rollTable(SETTLEMENT_CONFLICT);
   return {
-    type: `${type.name} — ${type.desc}`,
-    conflict: `${conflict.name} — ${conflict.desc}`,
+    type: rollLine('settlementType'),
+    conflict: rollLine('settlementConflict'),
   };
 }
 /** A freshly rolled site / settlement, name left blank for the GM to fill. */
@@ -379,9 +442,9 @@ export function rollSettlement() { return Object.assign({ name: '' }, rollSettle
 // Re-roll one WAG survey line — powers the per-line dice in the inspector.
 export function rerollField(key, terrainKey) {
   switch (key) {
-    case 'weather':      { const r = rollTable(WEATHER);   return `${r.name} — ${r.desc}`; }
-    case 'sign':         { const r = rollTable(SIGN);      return `${r.name} — ${r.desc}`; }
-    case 'discovery':    { const r = rollTable(DISCOVERY); return `${r.name} — ${r.desc}`; }
+    case 'weather':      return rollLine('weather');
+    case 'sign':         return rollLine('sign');
+    case 'discovery':    return rollLine('discovery');
     case 'feature':      { const r = rollFeature(terrainKey); return { feature: r.name, featureDesc: r.desc }; }
     case 'encounter':    return encounterText(rollEncounter(terrainKey));
     default:             return '';

@@ -6,8 +6,8 @@
 // the grid. normalize() coerces anything loaded from disk into a valid atlas so a
 // half-written folder degrades gracefully instead of crashing.
 
-import { REGIONS, iconForTerrain, rollTerrain, generateHex } from './wag.js';
-import { emptyHex, isPopulated } from './hex.js';
+import { REGIONS, iconForTerrain, rollTerrain, rollTerrainForHex, generateHex, EDITABLE_TABLES } from './wag.js';
+import { emptyHex, isPopulated, hexId, neighbors } from './hex.js';
 import { HINTERLANDS_SEED } from './hinterlands-seed.js';
 
 export const VERSION = 1;
@@ -26,8 +26,25 @@ export function createAtlas(name = 'The Hinterlands') {
     createdWith: 'td10 Atlas',
     hexes: {},      // id -> hex record (populated only)
     markers: [],    // atlas-level overlay: [{ type, hexId, label }] (backlog 16)
-    rivers: [],     // atlas-level overlay: [ [hexId, hexId, …], … ] — a river per path
+    rivers: [],     // atlas-level overlay: [ {w, pts} … ] — a river per path
+    customTables: {}, // per-atlas WAG table overrides: { tableKey: [{name, desc}] } (backlog 4)
   };
+}
+
+const EDITABLE_KEYS = new Set(EDITABLE_TABLES.map((t) => t.key));
+/** Coerce raw customTables into { tableKey: [{name, desc}] } for known tables only. */
+export function normalizeCustomTables(raw) {
+  const out = {};
+  if (raw && typeof raw === 'object') {
+    Object.keys(raw).forEach((k) => {
+      if (!EDITABLE_KEYS.has(k) || !Array.isArray(raw[k])) return;
+      const rows = raw[k]
+        .map((r) => ({ name: typeof r?.name === 'string' ? r.name : '', desc: typeof r?.desc === 'string' ? r.desc : '' }))
+        .filter((r) => r.name || r.desc);
+      if (rows.length) out[k] = rows;
+    });
+  }
+  return out;
 }
 
 /** Coerce a raw markers array into clean marker records. */
@@ -88,6 +105,7 @@ export function normalizeConfig(raw) {
     a.hexMiles = clampInt(raw.hexMiles, 1, 100, DEFAULT_HEX_MILES);
     a.markers = normalizeMarkers(raw.markers);
     a.rivers = normalizeRivers(raw.rivers);
+    a.customTables = normalizeCustomTables(raw.customTables);
   }
   return a;
 }
@@ -153,5 +171,33 @@ export function createStarterAtlas(withHinterlands = true) {
   return a;
 }
 
+// ---- random terrain map (backlog 15) --------------------------------------
+// Fill a whole grid with *coherent* terrain (ranges cluster, coasts run in lines)
+// by growing outward with the neighbour-aware roll — but leave every hex's survey
+// content blank. Rolling a hex per already-placed neighbours (row-major order, so
+// left/up neighbours are set) gives believable country rather than noise.
+
+export function createRandomAtlas(cols, rows) {
+  const a = createAtlas();
+  a.name = 'Random Frontier';
+  a.cols = clampInt(cols, 1, 60, DEFAULT_COLS);
+  a.rows = clampInt(rows, 1, 60, DEFAULT_ROWS);
+  const hexes = {};
+  for (let col = 0; col < a.cols; col++) {
+    for (let row = 0; row < a.rows; row++) {
+      const id = hexId(col, row);
+      const nbr = neighbors(col, row)
+        .map((n) => { const nh = hexes[hexId(n.col, n.row)]; return nh ? nh.terrain : null; })
+        .filter(Boolean);
+      const h = emptyHex(id);
+      h.terrain = rollTerrainForHex('Unassigned', nbr);
+      applyTerrainIcon(h);
+      hexes[id] = h;
+    }
+  }
+  a.hexes = hexes;
+  return a;
+}
+
 // Re-exports so app.js has one import surface for model concerns.
-export { REGIONS, rollTerrain, generateHex };
+export { REGIONS, rollTerrain, rollTerrainForHex, generateHex };

@@ -45,8 +45,26 @@
   paint, stamps, generate, edits, erase, rivers, markers, and grid/scale. Bounded
   debounced full-atlas snapshots (a drag or a burst of typing = one step); undo
   re-persists only the hex files that changed.
-- [ ] 4, 5, 6, 15 — see below. (Item 6 = a *general* in-app importer for any map;
-  the Hinterlands is baked via the build script above.)
+- [x] **4. Editable WAG tables** — each result card's table label is clickable and
+  opens a per-atlas editor: edit rows, add your own, reset to default. New rows are
+  reachable (weight 1) while defaults keep their 1d10 odds. Stored in `atlas.json`
+  (`customTables`), undo-aware. *(Weather/Sign/Discovery + Site/Settlement tables;
+  Feature/Encounter tie to terrain flavor and are not yet editable.)*
+- [x] **5. Neighbour-aware terrain** — Generate / Roll-terrain now bias a hex's
+  terrain toward its revealed neighbours (continuity, ~39% adjacency vs ~14%
+  random). **The blend weight is a PLACEHOLDER** — drop in the canonical WAG
+  terrain table (via item 4) to replace it; nothing invented is presented as canon.
+- [x] **6. Import a map → native hexes** — "Map image" imports any picture,
+  samples each hex, and assigns the nearest terrain (WAG terrain-key palette);
+  content stays blank, refine with the brush. General version of the Hinterlands
+  bake.
+- [x] **15. Random terrain map** — "Random map" fills the grid with coherent
+  terrain (grown via the neighbour-aware roll), content blank, respecting the
+  current grid size; content is still yours to survey.
+
+**All backlog items to date are done.** Open follow-ups noted inline: the
+canonical WAG terrain table (item 5) and content reconcile, the extra icon/hex
+polish (7/8), and the river-tool tuning the author is iterating on.
 
 Assets pulled from `td10rpg/td10` for the remaining items live in `assets/`
 (`the-fort-world-map.png`, `wag-terrain-key.png`). The canonical WAG tool is at
