@@ -134,6 +134,23 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .tools .sep { width: 32px; height: 1px; background: var(--line); margin: 4px 0; }
 .tools .tool-label { display: none; }
 
+/* ---- brush picker popover (off the terrain / region tool button) ---- */
+.brush-menu {
+  position: fixed; z-index: 90; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 6px;
+  min-width: 168px; max-height: 78vh; overflow-y: auto;
+}
+.brush-menu-head { font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--ink-dim); padding: 3px 8px 6px; }
+.brush-opt {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: transparent; border: 1px solid transparent; border-radius: 5px;
+  padding: 6px 8px; font-size: 13px; color: var(--ink); cursor: pointer;
+}
+.brush-opt:hover { background: var(--panel-2); border-color: var(--line); }
+.brush-opt.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.brush-opt .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.3); flex: 0 0 auto; }
+.brush-opt-label { white-space: nowrap; }
+
 /* ---- map ---- */
 .mapwrap { position: relative; background: var(--map-bg); overflow: hidden; min-width: 0; }
 #map { width: 100%; height: 100%; display: block; touch-action: none; cursor: var(--map-cursor), crosshair; }

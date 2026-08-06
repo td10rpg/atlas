@@ -199,8 +199,8 @@ function buildTools() {
   toolsEl.innerHTML =
     tool('inspect', 'Inspect / select (drag to pan)') +
     '<div class="sep"></div>' +
-    tool('terrain', 'Paint terrain') +
-    tool('region', 'Paint region') +
+    tool('terrain', 'Paint terrain — click to pick the brush') +
+    tool('region', 'Paint region — click to pick the region') +
     '<div class="sep"></div>' +
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
@@ -211,27 +211,65 @@ function buildTools() {
 
 function setTool(key) {
   S.tool = key;
+  closeBrushMenu();
   buildTools();
   renderHud();
   mapEl.classList.toggle('painting', key !== 'inspect');
 }
 
+// ---- brush picker popover (terrain / region) ------------------------------
+// Opens off the tool button in the rail rather than living in the bottom bar.
+let brushMenuKind = null;
+function openBrushMenu(kind, anchorBtn) {
+  closeBrushMenu();
+  const items = kind === 'terrain'
+    ? TERRAINS.map((t) => ({ v: t.key, label: t.key, color: TERRAIN_COLOR[t.key] }))
+    : REGIONS.map((r) => ({ v: r.name, label: r.name, color: r.color }));
+  const cur = kind === 'terrain' ? S.brushTerrain : S.brushRegion;
+  const el = document.createElement('div');
+  el.id = 'brush-menu'; el.className = 'brush-menu';
+  el.setAttribute('role', 'menu');
+  el.innerHTML =
+    `<div class="brush-menu-head">${kind === 'terrain' ? 'Terrain brush' : 'Region brush'}</div>` +
+    items.map((o) =>
+      `<button class="brush-opt${o.v === cur ? ' active' : ''}" role="menuitemradio" aria-checked="${o.v === cur}" data-brush="${escapeHtml(o.v)}">` +
+      `<span class="swatch" style="background:${o.color}"></span><span class="brush-opt-label">${escapeHtml(o.label)}</span></button>`).join('');
+  document.body.appendChild(el);
+  // Anchor to the right of the tool button, clamped into the viewport.
+  const r = anchorBtn.getBoundingClientRect();
+  el.style.left = `${Math.round(r.right + 8)}px`;
+  let top = Math.round(r.top);
+  if (top + el.offsetHeight > window.innerHeight - 8) top = Math.max(8, window.innerHeight - 8 - el.offsetHeight);
+  el.style.top = `${top}px`;
+  brushMenuKind = kind;
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-brush]'); if (!b) return;
+    if (kind === 'terrain') S.brushTerrain = b.dataset.brush; else S.brushRegion = b.dataset.brush;
+    closeBrushMenu();
+    buildTools(); // refresh the swatch on the tool button
+  });
+  // Defer so the opening click doesn't immediately close it.
+  setTimeout(() => document.addEventListener('pointerdown', onBrushOutside, true), 0);
+  document.addEventListener('keydown', onBrushEsc, true);
+}
+function closeBrushMenu() {
+  const el = $('#brush-menu'); if (el) el.remove();
+  brushMenuKind = null;
+  document.removeEventListener('pointerdown', onBrushOutside, true);
+  document.removeEventListener('keydown', onBrushEsc, true);
+}
+function onBrushOutside(e) {
+  // Clicks inside the menu, or on any tool button (the rail handler manages those),
+  // are left alone; anything else dismisses.
+  if (e.target.closest('#brush-menu') || e.target.closest('.tool')) return;
+  closeBrushMenu();
+}
+function onBrushEsc(e) { if (e.key === 'Escape') { e.preventDefault(); closeBrushMenu(); } }
+
 // ---- HUD (zoom, labels, grid size, brush context) -------------------------
 
 function renderHud() {
   const count = Object.values(S.atlas.hexes).filter(isPopulated).length;
-  let brush = '';
-  if (S.tool === 'terrain') {
-    brush = `<span class="sep2">|</span> Brush ` +
-      `<select data-hud="brush-terrain">` +
-      TERRAINS.map((t) => `<option ${t.key === S.brushTerrain ? 'selected' : ''}>${t.key}</option>`).join('') +
-      `</select>`;
-  } else if (S.tool === 'region') {
-    brush = `<span class="sep2">|</span> Brush ` +
-      `<select data-hud="brush-region">` +
-      REGIONS.map((r) => `<option ${r.name === S.brushRegion ? 'selected' : ''}>${r.name}</option>`).join('') +
-      `</select>`;
-  }
   hudEl.innerHTML =
     `<button class="btn small" data-action="zoom-out" title="Zoom out">−</button>` +
     `<button class="btn small" data-action="fit" title="Fit map">Fit</button>` +
@@ -247,7 +285,6 @@ function renderHud() {
     `<span class="sep2">|</span> Scale ` +
     `<input type="number" data-hud="hexmiles" min="1" max="100" value="${S.atlas.hexMiles}" style="width:42px" title="miles across a hex"/>` +
     ` mi/hex (~${Math.round(0.8660254 * S.atlas.hexMiles * S.atlas.hexMiles)} sq&nbsp;mi)` +
-    brush +
     `<span class="sep2">|</span> ${count} hex${count === 1 ? '' : 'es'}`;
 }
 
@@ -932,7 +969,21 @@ function wireEvents() {
 
   toolsEl.addEventListener('click', (e) => {
     const t = e.target.closest('.tool');
-    if (t) setTool(t.dataset.tool);
+    if (!t) return;
+    const key = t.dataset.tool;
+    // Terrain / region carry a brush: clicking the tool opens a picker anchored to
+    // the button. Clicking the already-active brush tool toggles the menu.
+    if (key === 'terrain' || key === 'region') {
+      const wasActive = S.tool === key;
+      const menuWasOpen = brushMenuKind === key;
+      setTool(key); // rebuilds the rail, so re-query the button afterwards
+      if (!(wasActive && menuWasOpen)) {
+        const btn = toolsEl.querySelector(`.tool[data-tool="${key}"]`);
+        if (btn) openBrushMenu(key, btn);
+      }
+    } else {
+      setTool(key);
+    }
   });
 
   hudEl.addEventListener('click', (e) => {
@@ -948,8 +999,6 @@ function wireEvents() {
   hudEl.addEventListener('change', (e) => {
     const el = e.target;
     if (el.dataset.hud === 'labels') { S.showLabels = el.checked; renderMap(); applyView(); }
-    if (el.dataset.hud === 'brush-terrain') { S.brushTerrain = el.value; buildTools(); }
-    if (el.dataset.hud === 'brush-region') { S.brushRegion = el.value; buildTools(); }
     if (el.dataset.hud === 'cols' || el.dataset.hud === 'rows') {
       const v = Math.max(1, Math.min(60, Math.round(Number(el.value)) || 1));
       S.atlas[el.dataset.hud] = v;
