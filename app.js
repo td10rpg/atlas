@@ -435,16 +435,6 @@ function buildHex(col, row) {
     base += `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
       terrainGlyph(rec.icon, { size: gs }) + `</g>`;
   }
-  // Site and settlement badges sit symmetrically in the two upper corners, clear
-  // of the central glyph.
-  if (rec && hasSite(rec)) {
-    const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
-    base += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', '#c98a8a', n);
-  }
-  if (rec && hasSettlement(rec)) {
-    const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
-    base += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', '#d8b25a', n);
-  }
 
   let top = `<polygon points="${pts}" fill="none" stroke="${stroke}"/>`;
   if (rec && rec.canon) {
@@ -455,6 +445,16 @@ function buildHex(col, row) {
     if (rec && rec.name) {
       top += `<text class="hex-name" x="${cx}" y="${(cy + SIZE * 0.78).toFixed(1)}" text-anchor="middle">${escapeXml(clip(rec.name, 14))}</text>`;
     }
+  }
+  // Site and settlement stamps sit symmetrically in the two upper corners, drawn
+  // on the TOP layer so they read over the grid lines (not under them).
+  if (rec && hasSite(rec)) {
+    const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
+    top += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', '#c98a8a', n);
+  }
+  if (rec && hasSettlement(rec)) {
+    const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
+    top += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', '#d8b25a', n);
   }
   return {
     base: `<g class="${cls}" data-id="${id}">${base}</g>`,

@@ -166,7 +166,8 @@ input, select, textarea { font-family: inherit; color: inherit; }
 
 /* ---- map ---- */
 .mapwrap { position: relative; background: var(--map-bg); overflow: hidden; min-width: 0; }
-#map { width: 100%; height: 100%; display: block; touch-action: none; cursor: var(--map-cursor), crosshair; }
+#map { width: 100%; height: 100%; display: block; touch-action: none; cursor: var(--map-cursor), crosshair;
+  user-select: none; -webkit-user-select: none; }  /* don't text-select hex numbers/labels on drag */
 #map.grabbing { cursor: grabbing; }
 #map.painting { cursor: var(--map-cursor), crosshair; }
 
