@@ -387,10 +387,12 @@ function renderMap() {
 }
 
 // ---- rivers (freehand → snapped to an invisible sub-hex lattice) -----------
-// The river follows the vertices of a finer hex grid laid over the map: one
-// sub-hex per mile, so a 6-mile hex carries a 6× lattice (and it scales with the
-// atlas's hexMiles). Snapping keeps a freehand stroke anchored to the hex
-// geometry — it meanders like a hand-drawn river but still "belongs" to the grid.
+// The river follows the CELLS of a finer hex grid laid over the map: one sub-hex
+// per mile, so a 6-mile hex carries a 6× lattice (and it scales with the atlas's
+// hexMiles). A freehand stroke is "bucket-filled" onto the sub-hexes it crosses
+// and drawn through their centres — so it meanders like a hand-drawn river but
+// still belongs to the grid, and a straight drag along a column of cells stays
+// straight (centres are colinear; snapping to vertices would zigzag).
 
 /** Radius of a sub-hex: SIZE / (miles per hex), so each sub-hex spans one mile. */
 function subHexR() { return SIZE / Math.max(1, Math.round(S.atlas.hexMiles || 6)); }
@@ -404,29 +406,20 @@ function axialRound(q, r) {
   return [rx, rz];
 }
 
-/** Snap a board point to the nearest vertex of the sub-hex lattice (flat-top). */
-function snapToSubVertex(px, py) {
+/** Snap a board point to the centre of the sub-hex cell that contains it (flat-top). */
+function snapToSubCell(px, py) {
   const r = subHexR();
   const q = (2 / 3 * px) / r;
   const rr = (-1 / 3 * px + Math.sqrt(3) / 3 * py) / r;
   const [cq, cr] = axialRound(q, rr);
-  const cx = r * 1.5 * cq;
-  const cy = r * Math.sqrt(3) * (cr + cq / 2);
-  let best = null, bd = Infinity;
-  for (let i = 0; i < 6; i++) {
-    const a = (Math.PI / 180) * (60 * i);
-    const vx = cx + r * Math.cos(a), vy = cy + r * Math.sin(a);
-    const d = (vx - px) ** 2 + (vy - py) ** 2;
-    if (d < bd) { bd = d; best = [vx, vy]; }
-  }
-  return best;
+  return [r * 1.5 * cq, r * Math.sqrt(3) * (cr + cq / 2)];
 }
 
-/** Turn a raw freehand path (board points) into a deduped snapped-vertex polyline. */
+/** Turn a raw freehand path (board points) into a deduped chain of sub-cell centres. */
 function riverFromRaw(raw) {
   const out = [];
   for (const [px, py] of raw) {
-    const v = snapToSubVertex(px, py);
+    const v = snapToSubCell(px, py);
     const last = out[out.length - 1];
     if (!last || last[0] !== v[0] || last[1] !== v[1]) out.push(v);
   }
