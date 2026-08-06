@@ -268,16 +268,17 @@ function buildHex(col, row) {
   // per-hex glyph. On land the REGION owns the fill colour — a hex keeps its region
   // tint whether or not it's been surveyed, so the five regions always read as zones;
   // terrain is carried by the glyph, not by recolouring the hex. A *surveyed* hex is
-  // marked with the SAME region hue in a slightly darker shade (plus a touch more
-  // opacity), so explored country reads a shade deeper than the unsurveyed frontier
-  // around it. Land with no region (imported / random / Unassigned) falls back to its
-  // terrain colour. A small deterministic jitter keeps a zone from reading as flat.
+  // the SAME region hue, uniformly darkened by a fixed amount — nothing else changes
+  // (same opacity), so across every region "surveyed" reads consistently as one shade
+  // deeper of that region's colour, never as a different colour. Land with no region
+  // (imported / random / Unassigned) falls back to its terrain colour. A small
+  // deterministic jitter keeps a zone from reading as one flat block of colour.
   let fill, fillOp;
   if (isOcean) { fill = terrColor; fillOp = (0.5 + hexJitter(id) * 0.6).toFixed(3); }
   else if (region && region.name !== 'Unassigned') {
     const surveyed = !!(rec && rec.terrain);
-    fill = surveyed ? darken(region.color, 0.30) : region.color;
-    fillOp = ((surveyed ? 0.30 : 0.15) + hexJitter(id) * 0.5).toFixed(3);
+    fill = surveyed ? darken(region.color, 0.34) : region.color;
+    fillOp = (0.44 + hexJitter(id) * 0.35).toFixed(3); // constant: only the hue darkens when surveyed
   } else if (terrColor) { fill = terrColor; fillOp = (0.32 + hexJitter(id)).toFixed(3); }
   else { fill = 'var(--hex-blank)'; fillOp = '1'; }
 
