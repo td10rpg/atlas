@@ -175,7 +175,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .hex polygon { transition: fill .12s; }               /* base = terrain fill (no stroke) */
 /* Rivers and the grid/label layer sit above the fills but must not eat clicks —
    the base .hex polygons are the hit targets. */
-#river-layer, #grid-layer, #label-layer, #overlay { pointer-events: none; }
+#river-layer, #grid-layer, #stamp-layer, #label-layer, #overlay { pointer-events: none; }
 /* Free labels — serif, with a background-coloured halo so they read over any
    terrain. Font size / stroke width are set on #label-layer per zoom (clamped). */
 .map-label { fill: var(--ink); stroke: var(--bg); paint-order: stroke; stroke-linejoin: round;

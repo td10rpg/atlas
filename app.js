@@ -446,29 +446,40 @@ function buildHex(col, row) {
       top += `<text class="hex-name" x="${cx}" y="${(cy + SIZE * 0.78).toFixed(1)}" text-anchor="middle">${escapeXml(clip(rec.name, 14))}</text>`;
     }
   }
-  // Site and settlement stamps sit symmetrically in the two upper corners, drawn
-  // on the TOP layer so they read over the grid lines (not under them).
+  // Site and settlement stamps sit symmetrically in the two upper corners, on a
+  // dedicated layer drawn after EVERY grid line — otherwise a neighbouring hex's
+  // line (rendered later) paints over a stamp near the shared edge.
+  let stamps = '';
   if (rec && hasSite(rec)) {
     const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
-    top += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', '#c98a8a', n);
+    stamps += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', n);
   }
   if (rec && hasSettlement(rec)) {
     const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
-    top += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', '#d8b25a', n);
+    stamps += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', n);
   }
   return {
     base: `<g class="${cls}" data-id="${id}">${base}</g>`,
     top: `<g class="hex-top" data-id="${id}">${top}</g>`,
+    stamps: `<g class="hex-stamps" data-id="${id}">${stamps}</g>`,
   };
 }
 
-function badge(x, y, kind, color, count) {
-  const s = SIZE * 0.36;
+// A stamp: an aged copper disc with a cream engraved emblem — a reddish copper for
+// sites, a warmer golden copper for settlements. Subtle inner rim for a coin feel.
+const STAMP = {
+  site: { base: '#a86a48', ring: '#6f4530', rim: '#c08a63' },
+  settlement: { base: '#b98a4c', ring: '#7a5a30', rim: '#d1a86a' },
+};
+function badge(x, y, kind, count) {
+  const s = SIZE * 0.36, r = s / 2 + 1, c = s / 2, ink = '#f3ead6';
+  const t = STAMP[kind] || STAMP.site;
   const countMark = count > 1
-    ? `<text x="${(s + 1).toFixed(1)}" y="${(s * 0.35).toFixed(1)}" text-anchor="middle" font-size="${(s * 0.62).toFixed(1)}" font-weight="700" fill="${color}" stroke="var(--map-bg)" stroke-width="0.6" paint-order="stroke">×${count}</text>`
+    ? `<text x="${(s + 1).toFixed(1)}" y="${(s * 0.35).toFixed(1)}" text-anchor="middle" font-size="${(s * 0.62).toFixed(1)}" font-weight="700" fill="${ink}" stroke="${t.ring}" stroke-width="0.7" paint-order="stroke">×${count}</text>`
     : '';
-  return `<g transform="translate(${(x - s / 2).toFixed(1)},${(y - s / 2).toFixed(1)})" style="color:${color}">` +
-    `<circle cx="${s / 2}" cy="${s / 2}" r="${s / 2 + 1}" fill="var(--map-bg)" stroke="${color}" stroke-width="0.8"/>` +
+  return `<g transform="translate(${(x - s / 2).toFixed(1)},${(y - s / 2).toFixed(1)})" style="color:${ink}">` +
+    `<circle cx="${c}" cy="${c}" r="${r}" fill="${t.base}" stroke="${t.ring}" stroke-width="1"/>` +
+    `<circle cx="${c}" cy="${c}" r="${(r - 1.1).toFixed(2)}" fill="none" stroke="${t.rim}" stroke-width="0.6" opacity="0.7"/>` +
     `<g transform="translate(${s * 0.16},${s * 0.16}) scale(${(s * 0.68 / 24).toFixed(3)})">` +
     overlayGlyph(kind, { size: 24 }) + `</g>${countMark}</g>`;
 }
@@ -476,16 +487,17 @@ function badge(x, y, kind, color, count) {
 function renderMap() {
   const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
   mapEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  let base = '', top = '';
+  let base = '', top = '', stamps = '';
   for (let col = 0; col < S.atlas.cols; col++) {
     for (let row = 0; row < S.atlas.rows; row++) {
       const p = buildHex(col, row);
-      base += p.base; top += p.top;
+      base += p.base; top += p.top; stamps += p.stamps;
     }
   }
   // Layers, bottom to top: hex fills + terrain, rivers, the grid outlines +
-  // numbers, free labels, then the overlay (selection + markers + draw preview).
-  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="grid-layer">${top}</g><g id="label-layer"></g><g id="overlay"></g>`;
+  // numbers, the stamps (over every line), free labels, then the overlay
+  // (selection + markers + draw preview).
+  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="grid-layer">${top}</g><g id="stamp-layer">${stamps}</g><g id="label-layer"></g><g id="overlay"></g>`;
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
   drawRivers();
   drawLabels();
@@ -833,11 +845,13 @@ function clientToBoard(clientX, clientY) {
 function refreshHex(id) {
   const base = mapEl.querySelector(`#hex-layer .hex[data-id="${id}"]`);
   const top = mapEl.querySelector(`#grid-layer .hex-top[data-id="${id}"]`);
+  const stamps = mapEl.querySelector(`#stamp-layer .hex-stamps[data-id="${id}"]`);
   if (!base && !top) return;
   const { col, row } = parseId(id);
   const parts = buildHex(col, row);
   if (base) base.outerHTML = parts.base;
   if (top) top.outerHTML = parts.top;
+  if (stamps) stamps.outerHTML = parts.stamps;
 }
 
 // The overlay layer, drawn above every hex: the active-hex highlight (a single
@@ -1753,9 +1767,9 @@ function buildExportSVG() {
   const sans = "system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
 
   // Reuse the on-screen builders over the full board (labels follow S.showLabels).
-  let base = '', top = '';
+  let base = '', top = '', stamps = '';
   for (let col = 0; col < S.atlas.cols; col++) {
-    for (let row = 0; row < S.atlas.rows; row++) { const p = buildHex(col, row); base += p.base; top += p.top; }
+    for (let row = 0; row < S.atlas.rows; row++) { const p = buildHex(col, row); base += p.base; top += p.top; stamps += p.stamps; }
   }
   const rivers = (S.atlas.rivers || []).map((l) => { const d = smoothPath(l); return d ? `<path class="river" d="${d}"/>` : ''; }).join('');
   const markers = (S.atlas.markers || []).map((m) => {
@@ -1794,7 +1808,7 @@ function buildExportSVG() {
     `</style>` +
     `<rect width="${W}" height="${H}" fill="${bg}"/>` +
     titleEl +
-    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${top}${labels}${markers}</g>` +
+    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${top}${stamps}${labels}${markers}</g>` +
     scaleBar +
   `</svg>`;
 }
