@@ -34,7 +34,7 @@ const TERRAIN_COLOR = {
   'Swamp or Wetlands': '#5f8f78', 'Ocean or Coast': '#6f9a9a', 'Tundra': '#a9c4d6',
   'Desert': '#d9c07f', 'Urban': '#8f7a6a',
 };
-const RIVER_COLOR = '#2f7d9e'; // teal water channel for drawn rivers
+const RIVER_COLOR = TERRAIN_COLOR['Ocean or Coast']; // match the water terrain colour
 
 const BRAND_SVG = '<path d="M12 2l3 6 6 .5-4.5 4.2 1.4 6.3L12 16.9 6.1 19l1.4-6.3L3 8.5 9 8z" fill="none" stroke="currentColor" stroke-width="1.4"/>';
 const TOOL_ICONS = {
