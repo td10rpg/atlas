@@ -141,6 +141,12 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .hex polygon { stroke: var(--hex-line); stroke-width: 1; transition: fill .12s; }
 #overlay { pointer-events: none; }
 .sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.river { fill: none; stroke: #3f79b0; stroke-linecap: round; stroke-linejoin: round; opacity: .92; pointer-events: none; }
+.river.draft { stroke-dasharray: 4 4; opacity: .7; }
+.river-dot { fill: #3f79b0; pointer-events: none; }
+.river-dot.draft { opacity: .6; }
+:root[data-theme="dark"] .river, :root[data-theme="dark"] .river-dot { stroke: #5b9fd6; fill: #5b9fd6; }
+@media (prefers-color-scheme: dark) { .river, .river-dot { stroke: #5b9fd6; fill: #5b9fd6; } }
 .hex .hex-label { fill: var(--ink-dim); font-size: 8px; font-family: var(--sans); pointer-events: none; }
 .hex .hex-name { fill: var(--ink); font-size: 8.5px; font-weight: 600; font-family: var(--serif); pointer-events: none; }
 .hex .glyph { pointer-events: none; }

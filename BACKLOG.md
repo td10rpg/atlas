@@ -35,6 +35,10 @@
   glyph per hex); land terrain and region get a stable per-hex value jitter;
   unsurveyed land is softly tinted by its region so the five regions read as
   zones. *(Textured fills / feathered coastlines still possible later.)*
+- [x] **R. River tool** — trace a river through hexes (smooth curve through their
+  centres); click the end or Esc to finish, click a river to remove it; multiple
+  rivers; stored at the atlas level (`atlas.json`, like markers). Drawn on its own
+  layer over the fills, under the selection/markers.
 - [ ] 4, 5, 6, 15, 18 — see below. (Item 6 = a *general* in-app importer for any
   map; the Hinterlands is baked via the build script above.)
 

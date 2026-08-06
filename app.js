@@ -37,6 +37,7 @@ const TOOL_ICONS = {
   inspect: '<path d="M5 3l14 8-6 1.6L10 19z"/>',
   terrain: '<path d="M3 21l6-2 9-9-4-4-9 9z"/><path d="M13.5 6.5l4 4"/>',
   region: '<path d="M6 3v18"/><path d="M6 4h11l-2.5 3.5L17 11H6"/>',
+  river: '<path d="M7 3c-1.6 3.5 3.5 4.5 1.8 8S5.5 16 7 21"/><path d="M15 3c-1.6 3.5 3.5 4.5 1.8 8S13.5 16 15 21"/>',
   settlement: '<path d="M4 20V11l8-6 8 6v9z"/><path d="M9.5 20v-5h5v5"/>',
   site: '<path d="M7 21V4l10 3-10 3"/>',
   erase: '<path d="M4 15l7-7 7 7-4 4H8z"/><path d="M8 21h10"/>',
@@ -61,6 +62,7 @@ const S = {
   brushRegion: 'The Pine Expanse',
   showLabels: true,
   notesTab: 'write',
+  riverDraft: null,     // ids of the river currently being traced, or null
   theme: 'auto',        // 'auto' | 'light' | 'dark' (backlog 14)
   view: { x: 0, y: 0, w: 100, h: 100 },
 };
@@ -194,6 +196,7 @@ function buildTools() {
     '<div class="sep"></div>' +
     tool('terrain', 'Paint terrain') +
     tool('region', 'Paint region') +
+    tool('river', 'River — click hexes to trace a river; Esc / click the end to finish') +
     '<div class="sep"></div>' +
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
@@ -203,10 +206,11 @@ function buildTools() {
 }
 
 function setTool(key) {
+  if (S.tool === 'river' && key !== 'river') finishRiver(); // leaving the tool commits the draft
   S.tool = key;
   buildTools();
   renderHud();
-  mapEl.classList.toggle('painting', key !== 'inspect');
+  mapEl.classList.toggle('painting', key !== 'inspect' && key !== 'river');
 }
 
 // ---- HUD (zoom, labels, grid size, brush context) -------------------------
@@ -224,6 +228,10 @@ function renderHud() {
       `<select data-hud="brush-region">` +
       REGIONS.map((r) => `<option ${r.name === S.brushRegion ? 'selected' : ''}>${r.name}</option>`).join('') +
       `</select>`;
+  } else if (S.tool === 'river') {
+    brush = `<span class="sep2">|</span> ` + (S.riverDraft
+      ? `Tracing river (${S.riverDraft.length}) — click on to extend, click the end or press Esc to finish`
+      : `River — click hexes to trace; click a river to remove it`);
   }
   hudEl.innerHTML =
     `<button class="btn small" data-action="zoom-out" title="Zoom out">−</button>` +
@@ -312,11 +320,41 @@ function renderMap() {
       cells += buildHex(col, row);
     }
   }
-  // Overlay layer sits above every hex — selection outline (and, later, markers)
-  // live here so nothing overpaints them and z-order is deterministic.
-  mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="overlay"></g>`;
+  // Layers, bottom to top: hexes, rivers (over the fills), then the overlay
+  // (selection outline + markers), so nothing overpaints the top affordances.
+  mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="rivers"></g><g id="overlay"></g>`;
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
+  drawRivers();
   drawOverlay();
+}
+
+// Rivers run between hexes as a smooth line through the centers of their path
+// (the river tool). Committed rivers live in atlas.rivers; the in-progress draft
+// is drawn dashed until finished.
+function drawRivers() {
+  const g = mapEl.querySelector('#rivers');
+  if (!g) return;
+  let s = '';
+  (S.atlas.rivers || []).forEach((r) => { s += riverPath(r, false); });
+  if (S.riverDraft) s += riverPath(S.riverDraft, true);
+  g.innerHTML = s;
+}
+function riverPath(ids, draft) {
+  const pts = (ids || []).map((id) => { const { col, row } = parseId(id); return hexCenter(col, row, SIZE); });
+  if (!pts.length) return '';
+  const cls = 'river' + (draft ? ' draft' : '');
+  if (pts.length === 1) {
+    const p = pts[0];
+    return `<circle class="river-dot${draft ? ' draft' : ''}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(SIZE * 0.12).toFixed(1)}"/>`;
+  }
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
+    d += ` Q ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+  return `<path class="${cls}" d="${d}" style="stroke-width:${(SIZE * 0.16).toFixed(2)}"/>`;
 }
 
 function refreshHex(id) {
@@ -408,7 +446,9 @@ function wirePointer() {
     mapEl.setPointerCapture(e.pointerId);
     const hex = e.target.closest('.hex');
     const downId = hex ? hex.dataset.id : null;
-    const paintTool = S.tool !== 'inspect';
+    // The river tool is click-to-trace (handled on pointerup), so it pans on drag
+    // like Inspect rather than paints continuously.
+    const paintTool = S.tool !== 'inspect' && S.tool !== 'river';
     pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode: (paintTool && downId) ? 'paint' : 'pan', last: downId };
     if (pointer.mode === 'paint') { paintHex(downId, true); mapEl.classList.add('grabbing'); }
     else mapEl.classList.add('grabbing');
@@ -428,7 +468,10 @@ function wirePointer() {
   });
   const end = (e) => {
     if (!pointer) return;
-    if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) setSelected(pointer.downId);
+    if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) {
+      if (S.tool === 'river') riverClick(pointer.downId);
+      else setSelected(pointer.downId);
+    }
     mapEl.classList.remove('grabbing');
     try { mapEl.releasePointerCapture(e.pointerId); } catch {}
     pointer = null;
@@ -496,6 +539,33 @@ function toggleParty(id) {
   drawOverlay();
 }
 
+// The river tool: click hexes to trace a river through them. While a draft is
+// open, clicking the last point finishes it and clicking the previous point undoes
+// a step; when idle, clicking any hex on an existing river removes that river, and
+// clicking elsewhere starts a new one. Rivers live at the atlas level (atlas.json).
+function riverClick(id) {
+  if (S.riverDraft) {
+    const d = S.riverDraft;
+    if (d[d.length - 1] === id) { finishRiver(); return; }             // click end → finish
+    if (d.length >= 2 && d[d.length - 2] === id) { d.pop(); drawRivers(); return; } // click prev → undo
+    d.push(id); drawRivers(); renderHud();
+    return;
+  }
+  const ri = (S.atlas.rivers || []).findIndex((r) => r.includes(id));
+  if (ri >= 0) { S.atlas.rivers.splice(ri, 1); persistConfig(); drawRivers(); toast('River removed.'); return; }
+  S.riverDraft = [id]; drawRivers(); renderHud();
+}
+function finishRiver() {
+  if (S.riverDraft && S.riverDraft.length >= 2) {
+    (S.atlas.rivers || (S.atlas.rivers = [])).push(S.riverDraft.slice());
+    persistConfig();
+    toast('River added.');
+  }
+  S.riverDraft = null;
+  drawRivers();
+  renderHud();
+}
+
 /** Ensure the hex, mutate it, then persist + repaint + refresh the inspector. */
 function mutate(id, fn) {
   const h = ensureHex(S.atlas, id);
@@ -545,7 +615,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [] },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [] },
       hexes,
     }));
   } catch { /* quota or private mode — ignore */ }
@@ -856,10 +926,10 @@ function wireEvents() {
 
   document.addEventListener('keydown', (e) => {
     if (e.target.matches('input,textarea,select')) return;
-    const map = { v: 'inspect', t: 'terrain', r: 'region', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
+    const map = { v: 'inspect', t: 'terrain', r: 'region', w: 'river', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
     if (map[e.key]) setTool(map[e.key]);
     if (e.key === 'g' && S.selected) { onInspectorClick({ target: mkFakeBtn('generate') }); }
-    if (e.key === 'Escape') setSelected(null);
+    if (e.key === 'Escape') { if (S.riverDraft) finishRiver(); else setSelected(null); }
   });
 }
 function mkFakeBtn(action) {
@@ -904,7 +974,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [] }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [] }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
