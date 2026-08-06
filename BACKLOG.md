@@ -39,8 +39,12 @@
   centres); click the end or Esc to finish, click a river to remove it; multiple
   rivers; stored at the atlas level (`atlas.json`, like markers). Drawn on its own
   layer over the fills, under the selection/markers.
-- [ ] 4, 5, 6, 15, 18 — see below. (Item 6 = a *general* in-app importer for any
-  map; the Hinterlands is baked via the build script above.)
+- [x] **18. Undo / redo** — Ctrl/Cmd-Z and Shift-Z (plus HUD ↶ ↷), covering
+  paint, stamps, generate, edits, erase, rivers, markers, and grid/scale. Bounded
+  debounced full-atlas snapshots (a drag or a burst of typing = one step); undo
+  re-persists only the hex files that changed.
+- [ ] 4, 5, 6, 15 — see below. (Item 6 = a *general* in-app importer for any map;
+  the Hinterlands is baked via the build script above.)
 
 Assets pulled from `td10rpg/td10` for the remaining items live in `assets/`
 (`the-fort-world-map.png`, `wag-terrain-key.png`). The canonical WAG tool is at

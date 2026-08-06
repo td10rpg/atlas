@@ -156,6 +156,7 @@ function afterLoad() {
   fitView();
   renderInspector();
   saveLocal();
+  resetHistory();
 }
 
 // ---- top-bar / connection -------------------------------------------------
@@ -237,6 +238,9 @@ function renderHud() {
     `<button class="btn small" data-action="zoom-out" title="Zoom out">−</button>` +
     `<button class="btn small" data-action="fit" title="Fit map">Fit</button>` +
     `<button class="btn small" data-action="zoom-in" title="Zoom in">+</button>` +
+    `<span class="sep2">|</span>` +
+    `<button class="btn small" data-action="undo" title="Undo (Ctrl/Cmd-Z)" ${history.length < 2 ? 'disabled' : ''}>↶</button>` +
+    `<button class="btn small" data-action="redo" title="Redo (Ctrl/Cmd-Shift-Z)" ${future.length ? '' : 'disabled'}>↷</button>` +
     `<span class="sep2">|</span>` +
     `<label><input type="checkbox" data-hud="labels" ${S.showLabels ? 'checked' : ''}/> labels</label>` +
     `<span class="sep2">|</span> Map ` +
@@ -537,6 +541,7 @@ function toggleParty(id) {
   else list.push({ type: 'party', hexId: id, label: 'Party' });
   persistConfig();
   drawOverlay();
+  recordChange();
 }
 
 // The river tool: click hexes to trace a river through them. While a draft is
@@ -552,13 +557,14 @@ function riverClick(id) {
     return;
   }
   const ri = (S.atlas.rivers || []).findIndex((r) => r.includes(id));
-  if (ri >= 0) { S.atlas.rivers.splice(ri, 1); persistConfig(); drawRivers(); toast('River removed.'); return; }
+  if (ri >= 0) { S.atlas.rivers.splice(ri, 1); persistConfig(); drawRivers(); recordChange(); toast('River removed.'); return; }
   S.riverDraft = [id]; drawRivers(); renderHud();
 }
 function finishRiver() {
   if (S.riverDraft && S.riverDraft.length >= 2) {
     (S.atlas.rivers || (S.atlas.rivers = [])).push(S.riverDraft.slice());
     persistConfig();
+    recordChange();
     toast('River added.');
   }
   S.riverDraft = null;
@@ -574,6 +580,7 @@ function mutate(id, fn) {
   refreshHex(id);
   if (S.selected === id) renderInspector();
   renderHud();
+  recordChange();
 }
 
 function eraseHex(id) {
@@ -585,6 +592,7 @@ function eraseHex(id) {
   saveLocal();
   if (S.selected === id) renderInspector();
   renderHud();
+  recordChange();
 }
 
 // ---- persistence ----------------------------------------------------------
@@ -629,6 +637,73 @@ function loadLocal() {
     loadHexes(atlas, Object.values(b.hexes || {}));
     return atlas;
   } catch { return null; }
+}
+
+// ---- undo / redo (backlog 18) ---------------------------------------------
+// Bounded, debounced full-atlas snapshots. recordChange() is called after every
+// mutation; rapid edits (typing) coalesce into one snapshot. Undo/redo restore a
+// snapshot and re-persist only the hex files that actually differ.
+
+const UNDO_CAP = 40;
+let history = [];   // snapshots; the last is always the current committed state
+let future = [];    // snapshots undone, available to redo
+let recordTimer = null;
+
+const clone = (x) => JSON.parse(JSON.stringify(x == null ? null : x));
+function snapshot() {
+  return {
+    name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles,
+    markers: clone(S.atlas.markers || []), rivers: clone(S.atlas.rivers || []),
+    hexes: clone(S.atlas.hexes || {}),
+  };
+}
+/** Reset history to the current state — call after a fresh load/open/import. */
+function resetHistory() { history = [snapshot()]; future = []; renderHud(); }
+/** Note that the model changed; debounced so a burst of edits is one undo step. */
+function recordChange() {
+  clearTimeout(recordTimer);
+  recordTimer = setTimeout(commitHistory, 350);
+}
+function commitHistory() {
+  clearTimeout(recordTimer); recordTimer = null;
+  history.push(snapshot());
+  if (history.length > UNDO_CAP + 1) history.shift();
+  future = [];
+  renderHud();
+}
+function applySnapshot(snap) {
+  const oldHexes = S.atlas.hexes || {};
+  S.atlas.name = snap.name; S.atlas.cols = snap.cols; S.atlas.rows = snap.rows; S.atlas.hexMiles = snap.hexMiles;
+  S.atlas.markers = clone(snap.markers); S.atlas.rivers = clone(snap.rivers);
+  const newHexes = clone(snap.hexes);
+  S.atlas.hexes = newHexes;
+  if (S.dir) { // write only the hex files that changed; delete removed ones
+    const ids = new Set([...Object.keys(oldHexes), ...Object.keys(newHexes)]);
+    ids.forEach((id) => {
+      const o = oldHexes[id], n = newHexes[id];
+      if (n && (!o || serializeHex(o) !== serializeHex(n))) store.saveHex(S.dir, n).catch(() => {});
+      else if (!n && o) store.removeHex(S.dir, id).catch(() => {});
+    });
+    store.saveConfig(S.dir, S.atlas).catch(() => {});
+  }
+  saveLocal();
+  nameInput.value = S.atlas.name || '';
+  if (S.selected && !getHex(S.atlas, S.selected)) { /* keep selection; inspector shows a blank */ }
+  renderMap(); applyView(); renderInspector(); renderHud();
+}
+function undo() {
+  if (recordTimer) commitHistory();
+  if (history.length < 2) { toast('Nothing to undo'); return; }
+  future.push(history.pop());
+  applySnapshot(history[history.length - 1]);
+  toast('Undo');
+}
+function redo() {
+  if (!future.length) { toast('Nothing to redo'); return; }
+  const snap = future.pop();
+  history.push(snap);
+  applySnapshot(snap);
+  toast('Redo');
 }
 
 // ---- inspector ------------------------------------------------------------
@@ -824,6 +899,7 @@ function commit(id) {
   refreshHex(id);
   renderInspector();
   renderHud();
+  recordChange();
 }
 
 function onInspectorChange(e) {
@@ -851,12 +927,14 @@ function onInspectorInput(e) {
       persistHexDebounced(id);
       clearTimeout(saveTimers['badge-' + id]);
       saveTimers['badge-' + id] = setTimeout(() => refreshHex(id), 400); // badge may appear/vanish
+      recordChange();
     }
     return;
   }
   if (t.name === 'notes') {
     const hx = ensureHex(S.atlas, id); hx.notes = t.value;
     persistHexDebounced(id);
+    recordChange();
   } else if (t.name === 'hexname') {
     const cur = getHex(S.atlas, id);
     if (cur && cur.canon) return; // name is fixed on canon hexes
@@ -864,6 +942,7 @@ function onInspectorInput(e) {
     persistHexDebounced(id);
     clearTimeout(saveTimers['name-' + id]);
     saveTimers['name-' + id] = setTimeout(() => refreshHex(id), 400);
+    recordChange();
   }
 }
 
@@ -888,6 +967,8 @@ function wireEvents() {
     if (b.dataset.action === 'zoom-in') zoom(1.25, rect.left + rect.width / 2, rect.top + rect.height / 2);
     if (b.dataset.action === 'zoom-out') zoom(1 / 1.25, rect.left + rect.width / 2, rect.top + rect.height / 2);
     if (b.dataset.action === 'fit') fitView();
+    if (b.dataset.action === 'undo') undo();
+    if (b.dataset.action === 'redo') redo();
   });
   hudEl.addEventListener('change', (e) => {
     const el = e.target;
@@ -897,11 +978,11 @@ function wireEvents() {
     if (el.dataset.hud === 'cols' || el.dataset.hud === 'rows') {
       const v = Math.max(1, Math.min(60, Math.round(Number(el.value)) || 1));
       S.atlas[el.dataset.hud] = v;
-      renderMap(); fitView(); persistConfig(); renderHud();
+      renderMap(); fitView(); persistConfig(); renderHud(); recordChange();
     }
     if (el.dataset.hud === 'hexmiles') {
       S.atlas.hexMiles = Math.max(1, Math.min(100, Math.round(Number(el.value)) || 6));
-      persistConfig(); renderHud();
+      persistConfig(); renderHud(); recordChange();
     }
   });
 
@@ -920,11 +1001,19 @@ function wireEvents() {
     S.atlas.name = nameInput.value;
     clearTimeout(saveTimers['atlas-name']);
     saveTimers['atlas-name'] = setTimeout(persistConfig, 400);
+    recordChange();
   });
 
   importInput.addEventListener('change', onImportFile);
 
   document.addEventListener('keydown', (e) => {
+    // Undo / redo work everywhere except inside a text field (which keeps native undo).
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z' || e.key === 'y')) {
+      if (e.target.matches('input,textarea,select')) return;
+      e.preventDefault();
+      if (e.key === 'y' || e.shiftKey) redo(); else undo();
+      return;
+    }
     if (e.target.matches('input,textarea,select')) return;
     const map = { v: 'inspect', t: 'terrain', r: 'region', w: 'river', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
     if (map[e.key]) setTool(map[e.key]);
