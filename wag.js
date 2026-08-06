@@ -56,13 +56,17 @@ export function iconForTerrain(terrainKey) {
 // (backlog 10). NOTE: this weighting is a placeholder for the canonical WAG
 // terrain-generation table — see BACKLOG item 5.
 const NON_URBAN = TERRAINS.map((t) => t.key).filter((k) => k !== 'Urban');
+// Each region's `prefer` list IS its terrain palette: a WAG-discovered hex in the
+// region only ever rolls one of these, so terrain always reads as consistent with the
+// region (see rollTerrainForHex). The signature terrain is repeated so it dominates.
+// Ocean is left out of every land region (the sea is seed-placed, never rolled).
 export const REGIONS = [
   { name: 'Unassigned',              color: '#6b7280', prefer: NON_URBAN },
-  { name: 'The River Settlements',   color: '#2f7d8f', prefer: ['Swamp or Wetlands', 'Ocean or Coast', 'Plains', 'Swamp or Wetlands'] },
-  { name: 'The Pine Expanse',        color: '#2f7d4f', prefer: ['Forest or Jungle', 'Forest or Jungle', 'Hills or Mountains', 'Swamp or Wetlands'] },
-  { name: 'The Bastion at Stonefall', color: '#9a6b3f', prefer: ['Hills or Mountains', 'Hills or Mountains', 'Plains', 'Desert'] },
-  { name: 'The Meltlands',           color: '#8f7d2f', prefer: ['Swamp or Wetlands', 'Tundra', 'Plains', 'Swamp or Wetlands'] },
-  { name: 'The White March',         color: '#5a6f9a', prefer: ['Tundra', 'Tundra', 'Hills or Mountains', 'Forest or Jungle'] },
+  { name: 'The River Settlements',   color: '#2f7d8f', prefer: ['Swamp or Wetlands', 'Swamp or Wetlands', 'Plains'] },
+  { name: 'The Pine Expanse',        color: '#2f7d4f', prefer: ['Forest or Jungle', 'Forest or Jungle', 'Forest or Jungle', 'Hills or Mountains'] },
+  { name: 'The Bastion at Stonefall', color: '#9a6b3f', prefer: ['Hills or Mountains', 'Hills or Mountains', 'Hills or Mountains', 'Plains'] },
+  { name: 'The Meltlands',           color: '#8f7d2f', prefer: ['Swamp or Wetlands', 'Swamp or Wetlands', 'Tundra', 'Plains'] },
+  { name: 'The White March',         color: '#5a6f9a', prefer: ['Tundra', 'Tundra', 'Tundra', 'Hills or Mountains', 'Forest or Jungle'] },
 ];
 
 export function regionByName(name) {
@@ -83,12 +87,19 @@ export function rollTerrain(regionName) {
 // terrain-generation table should replace these weights (see BACKLOG item 5); the
 // numbers here are wiring, not invented canon. Once the editable-tables work
 // (item 4) can hold a terrain table, point this at it.
-const NEIGHBOUR_BIAS = 4;
+const NEIGHBOUR_BIAS = 3;
+const REGION_WEIGHT = 2; // each prefer entry counts this much, so the region dominates
 export function rollTerrainForHex(regionName, neighbourTerrains = []) {
+  const region = regionByName(regionName);
+  const palette = new Set(region.prefer); // the only terrains this region may roll
   const weights = {};
-  regionByName(regionName).prefer.forEach((t) => { weights[t] = (weights[t] || 0) + 1; });
+  region.prefer.forEach((t) => { weights[t] = (weights[t] || 0) + REGION_WEIGHT; });
+  // Neighbours nudge for continuity, but only ever reinforce terrain that already
+  // belongs to the region — they can never introduce a foreign terrain (e.g. an
+  // Ocean neighbour won't turn a Pine Expanse hex into sea). This keeps every
+  // WAG-discovered hex consistent with its region.
   neighbourTerrains.filter(Boolean).forEach((t) => {
-    if (t === 'Urban') return;            // towns don't seed surrounding terrain
+    if (t === 'Urban' || !palette.has(t)) return;
     weights[t] = (weights[t] || 0) + NEIGHBOUR_BIAS;
   });
   const entries = Object.entries(weights);

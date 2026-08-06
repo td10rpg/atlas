@@ -265,12 +265,15 @@ function buildHex(col, row) {
   const terrColor = rec && rec.terrain ? TERRAIN_COLOR[rec.terrain] : null;
 
   // Naturalistic fills (backlog 8): open sea is a continuous teal expanse with no
-  // per-hex glyph; land terrain gets a small deterministic value jitter so a band
-  // of one terrain doesn't read as a flat block of colour.
+  // per-hex glyph. On land the REGION owns the fill colour — a hex keeps its region
+  // tint whether or not it's been surveyed, so the five regions always read as zones;
+  // terrain is carried by the glyph, not by recolouring the hex. Land with no region
+  // (imported / random / Unassigned) falls back to its terrain colour. A small
+  // deterministic jitter keeps a zone from reading as one flat block of colour.
   let fill, fillOp;
   if (isOcean) { fill = terrColor; fillOp = (0.5 + hexJitter(id) * 0.6).toFixed(3); }
+  else if (region && region.name !== 'Unassigned') { fill = region.color; fillOp = ((rec && rec.terrain ? 0.22 : 0.15) + hexJitter(id) * 0.5).toFixed(3); } // land keeps its region colour; a touch stronger once surveyed
   else if (terrColor) { fill = terrColor; fillOp = (0.32 + hexJitter(id)).toFixed(3); }
-  else if (region && region.name !== 'Unassigned') { fill = region.color; fillOp = (0.13 + hexJitter(id) * 0.5).toFixed(3); } // unsurveyed land, tinted by region
   else { fill = 'var(--hex-blank)'; fillOp = '1'; }
 
   const cls = 'hex' + (rec && rec.canon ? ' canon' : '');

@@ -231,6 +231,35 @@ Implementation pointers:
 - Ties into item 3: once aligned to the real map, seeded terrain gives the
   generator honest neighbors to grow from.
 
+## 19. Make regions a first-class Atlas concept (generalize)
+
+Regions are currently **hardcoded for the Hinterlands** in `wag.js › REGIONS`:
+each entry bundles a name, a colour, and a terrain palette (its `prefer` list).
+Two behaviors ride on that and are, for now, intentionally Hinterlands-specific:
+
+- **Region owns the hex fill.** On land, a hex is tinted by its region colour
+  whether or not it's been surveyed (surveyed hexes just a touch stronger), so the
+  regions always read as zones; terrain is carried by the glyph, not the fill
+  (`app.js › buildHex`). Region-less land (imported / random / Unassigned) still
+  falls back to its terrain colour.
+- **WAG terrain is region-consistent.** A discovered hex only ever rolls a terrain
+  from its region's palette; neighbours bias for continuity but can never introduce
+  a foreign terrain (`wag.js › rollTerrainForHex`, `REGION_WEIGHT` / `NEIGHBOUR_BIAS`).
+
+Generalize this into the main Atlas so any atlas — not just the Hinterlands — can
+define its own regions:
+
+- Move regions out of the WAG constant into **atlas data** (a `regions` list in
+  `atlas.json`: `{ name, color, terrainPalette }`), editable like the WAG tables
+  (item 4) — add / rename / recolour regions and set each one's terrain palette.
+- A per-hex `region` already exists; wire the fill and the terrain roll to read the
+  atlas's region definitions instead of the module constant.
+- Ties into item 5 (canonical WAG terrain table): the region palette + neighbour
+  blend is the placeholder that the canonical table/procedure should replace; keep
+  the "stay within the region's terrains" guarantee when it lands.
+- Ties into item 1 (td10.pw look): region colours should come from / harmonize with
+  the site palette once themed.
+
 ## 6. Import a map and convert it to native hexes
 
 Take an existing map (the Hinterlands image, or any map a GM brings) and turn it
