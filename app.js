@@ -34,7 +34,6 @@ const TERRAIN_COLOR = {
   'Swamp or Wetlands': '#5f8f78', 'Ocean or Coast': '#6f9a9a', 'Tundra': '#a9c4d6',
   'Desert': '#d9c07f', 'Urban': '#8f7a6a',
 };
-const RIVER_COLOR = TERRAIN_COLOR['Ocean or Coast']; // match the water terrain colour
 
 const BRAND_SVG = '<path d="M12 2l3 6 6 .5-4.5 4.2 1.4 6.3L12 16.9 6.1 19l1.4-6.3L3 8.5 9 8z" fill="none" stroke="currentColor" stroke-width="1.4"/>';
 const TOOL_ICONS = {
@@ -535,13 +534,14 @@ function smoothPath(p) {
 function drawRivers() {
   const rl = mapEl.querySelector('#river-layer');
   if (!rl) return;
-  // Drawn at the same colour and ~opacity as an Ocean/Coast hex fill (see the
-  // ocean fillOp in buildHex), so a river reads as the same water — seamless
-  // where it meets the sea, a clean channel over land.
+  // Rendered OPAQUE in --river (the ocean colour already composited over the map
+  // background — see styles.css), so a river is the exact colour a rendered ocean
+  // hex is, whatever terrain it crosses: it matches the sea on land and blends
+  // seamlessly where it meets it. A semi-transparent river would tint with the
+  // land underneath and drift off-colour.
   rl.innerHTML = (S.atlas.rivers || []).map((line) => {
     const d = smoothPath(line);
-    if (!d) return '';
-    return `<path d="${d}" fill="none" stroke="${RIVER_COLOR}" stroke-opacity="0.5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    return d ? `<path class="river" d="${d}"/>` : '';
   }).join('');
 }
 
@@ -554,9 +554,7 @@ function setRiverPreview(pts) {
   if (!p) {
     p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     p.id = 'river-preview';
-    p.setAttribute('fill', 'none'); p.setAttribute('stroke', RIVER_COLOR);
-    p.setAttribute('stroke-width', '2'); p.setAttribute('stroke-linecap', 'round');
-    p.setAttribute('stroke-linejoin', 'round'); p.setAttribute('stroke-dasharray', '1 3');
+    p.setAttribute('class', 'river preview');
     ov.appendChild(p);
   }
   p.setAttribute('d', d);

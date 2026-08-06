@@ -19,6 +19,7 @@
   --on-accent: #17181a;     /* text on an accent fill (dark theme: accent is light) */
   --danger: #c66b6b;
   --map-bg: #14201f;        /* a deep teal hint of water */
+  --river: #425d5d;         /* Ocean/Coast #6f9a9a composited 50% over --map-bg */
   --hex-blank: #232528;
   --hex-line: #47454a;
   --serif: 'EB Garamond', Georgia, 'Palatino Linotype', 'Times New Roman', serif;
@@ -38,7 +39,7 @@
     --bg: #faf8f8; --panel: #ffffff; --panel-2: #f1efef; --ink: #2b2b2b;
     --ink-dim: #4e4e4e; --line: #e5e5e5; --line-soft: #eeecec;
     --accent: #284b63; --accent-2: #84a59d; --on-accent: #faf8f8;
-    --map-bg: #e7efee; --hex-blank: #f4f2f1; --hex-line: #d9d6d2;
+    --map-bg: #e7efee; --river: #abc5c4; --hex-blank: #f4f2f1; --hex-line: #d9d6d2;
     --shadow: 0 6px 24px rgba(40,50,60,.14);
   }
 }
@@ -54,7 +55,7 @@
   --bg: #161618; --panel: #1d1d20; --panel-2: #26262b; --ink: #ebebec;
   --ink-dim: #a9a9ad; --line: #393639; --line-soft: #2c2a2e;
   --accent: #7b97aa; --accent-2: #84a59d; --on-accent: #17181a;
-  --map-bg: #14201f; --hex-blank: #232528; --hex-line: #47454a;
+  --map-bg: #14201f; --river: #425d5d; --hex-blank: #232528; --hex-line: #47454a;
   --shadow: 0 6px 24px rgba(0,0,0,.4);
 }
 
@@ -162,6 +163,8 @@ input, select, textarea { font-family: inherit; color: inherit; }
 /* Rivers and the grid/label layer sit above the fills but must not eat clicks —
    the base .hex polygons are the hit targets. */
 #river-layer, #grid-layer, #overlay { pointer-events: none; }
+.river { fill: none; stroke: var(--river); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.river.preview { stroke-width: 2.5; stroke-dasharray: 2 4; opacity: .85; }  /* live draw preview */
 .hex-top polygon { fill: none; stroke: var(--hex-line); stroke-width: 1; }  /* the grid outline, over rivers */
 .sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .hex-top .hex-label { fill: var(--ink-dim); opacity: .6; font-size: 8px; font-family: var(--sans); }
