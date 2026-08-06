@@ -415,15 +415,35 @@ function snapToSubCell(px, py) {
   return [r * 1.5 * cq, r * Math.sqrt(3) * (cr + cq / 2)];
 }
 
-/** Turn a raw freehand path (board points) into a deduped chain of sub-cell centres. */
-function riverFromRaw(raw) {
-  const out = [];
-  for (const [px, py] of raw) {
-    const v = snapToSubCell(px, py);
-    const last = out[out.length - 1];
-    if (!last || last[0] !== v[0] || last[1] !== v[1]) out.push(v);
+/** Moving-average low-pass over a point list — removes the imperceptible hand
+ *  tremor that would otherwise make the stroke cross cell boundaries back and
+ *  forth (and snap into visible kinks). */
+function movingAverage(pts, w) {
+  if (pts.length <= 2) return pts.slice();
+  const h = Math.floor(w / 2), out = [];
+  for (let i = 0; i < pts.length; i++) {
+    let sx = 0, sy = 0, c = 0;
+    for (let j = Math.max(0, i - h); j <= Math.min(pts.length - 1, i + h); j++) { sx += pts[j][0]; sy += pts[j][1]; c++; }
+    out.push([sx / c, sy / c]);
   }
   return out;
+}
+/** Turn a raw freehand path into a clean, grid-snapped chain. The ORDER is the
+ *  point: low-pass the raw stroke, simplify it down to a few anchors on the
+ *  shape the user actually drew, and only THEN snap those anchors to sub-cell
+ *  centres. Snapping a handful of well-separated points can't build a staircase,
+ *  so hand tremor never becomes a kink — no fragile per-wobble detection needed.
+ *  A straight drag still simplifies to two colinear cells → a straight line. */
+function riverFromRaw(raw) {
+  if (!raw || raw.length < 2) return (raw || []).map(([x, y]) => snapToSubCell(x, y));
+  const anchors = simplify(movingAverage(raw, 7), subHexR() * 0.9);
+  const snapped = [];
+  for (const [px, py] of anchors) {
+    const v = snapToSubCell(px, py);
+    const last = snapped[snapped.length - 1];
+    if (!last || last[0] !== v[0] || last[1] !== v[1]) snapped.push(v);
+  }
+  return trimHooks(snapped);
 }
 
 /** Squared distance from point p to segment a–b. */
@@ -485,17 +505,16 @@ function trimHooks(p) {
   while (p.length >= 3 && n++ < 2 && !turnNotHook(p[2], p[1], p[0])) p = p.slice(1);
   return p;
 }
-/** Build the river's SVG "d": simplify (kill the staircase), trim end-hooks,
- *  then Chaikin-smooth. */
-function smoothPath(raw) {
-  if (!raw || raw.length < 2) return '';
+/** Build the river's SVG "d" from an already-clean anchor chain: Chaikin-smooth
+ *  into a flowing curve. (Simplify / hook-trim happen in riverFromRaw, before the
+ *  points are snapped, so the stored chain is already clean.) */
+function smoothPath(p) {
+  if (!p || p.length < 2) return '';
   const f = (n) => n.toFixed(1);
-  let p = raw.length > 2 ? trimHooks(simplify(raw, subHexR())) : raw;
-  if (p.length < 2) return '';
   if (p.length === 2) return `M${f(p[0][0])},${f(p[0][1])} L${f(p[1][0])},${f(p[1][1])}`;
-  p = chaikin(p, 4);
-  let d = `M${f(p[0][0])},${f(p[0][1])}`;
-  for (let i = 1; i < p.length; i++) d += ` L${f(p[i][0])},${f(p[i][1])}`;
+  const q = chaikin(p, 4);
+  let d = `M${f(q[0][0])},${f(q[0][1])}`;
+  for (let i = 1; i < q.length; i++) d += ` L${f(q[i][0])},${f(q[i][1])}`;
   return d;
 }
 
