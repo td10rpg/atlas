@@ -121,10 +121,12 @@ async function boot() {
     if (await store.hasPermission(handle)) {
       try {
         S.dir = handle;
+        showBusy();
         S.atlas = await store.readAtlas(handle);
         afterLoad();
+        hideBusy();
         return;
-      } catch { /* fall through to landing */ }
+      } catch { hideBusy(); /* fall through to landing */ }
     } else {
       // Have a handle but need a gesture to re-grant — offer Reconnect.
       renderShell();

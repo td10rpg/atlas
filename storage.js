@@ -61,12 +61,20 @@ export async function readAtlas(dir) {
   const records = [];
   try {
     const hexDir = await dir.getDirectoryHandle(HEX_DIR, { create: true });
+    // List the hex files first, then read them in concurrent batches. Reading one
+    // at a time serialises hundreds of File System Access reads on every load,
+    // which is what made refresh crawl on a big atlas.
+    const files = [];
     for await (const [name, entry] of hexDir.entries()) {
-      if (entry.kind !== 'file' || !/\.md$/i.test(name)) continue;
-      try {
-        const text = await (await entry.getFile()).text();
-        records.push(parseHex(text, name.replace(/\.md$/i, '')));
-      } catch { /* unreadable file — skip */ }
+      if (entry.kind === 'file' && /\.md$/i.test(name)) files.push([name, entry]);
+    }
+    const CONC = 24;
+    for (let i = 0; i < files.length; i += CONC) {
+      const batch = await Promise.all(files.slice(i, i + CONC).map(async ([name, entry]) => {
+        try { return parseHex(await (await entry.getFile()).text(), name.replace(/\.md$/i, '')); }
+        catch { return null; }
+      }));
+      batch.forEach((r) => { if (r) records.push(r); });
     }
   } catch { /* no hexes dir yet */ }
 
