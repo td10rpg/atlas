@@ -172,6 +172,12 @@ input, select, textarea { font-family: inherit; color: inherit; }
   border-radius: 5px; padding: 4px 8px; font-family: var(--serif); font-size: 14px;
   box-shadow: var(--shadow); }
 .label-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* measure tool */
+.measure-line { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
+.measure-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 1.5; }
+.measure-badge { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 60;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--accent); border-radius: 20px;
+  padding: 5px 14px; font-size: 13px; font-family: var(--serif); box-shadow: var(--shadow); pointer-events: none; white-space: nowrap; }
 .river { fill: none; stroke: var(--river); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
 .river.preview { stroke-width: 2.5; stroke-dasharray: 2 4; opacity: .85; }  /* live draw preview */
 

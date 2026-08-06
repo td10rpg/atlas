@@ -54,6 +54,13 @@ export function neighbors(col, row) {
   return ODD_Q_DIRS[col & 1].map(([dc, dr]) => ({ col: col + dc, row: row + dr }));
 }
 
+/** Grid distance between two hexes (odd-q offset → cube distance). */
+export function hexDistance(colA, rowA, colB, rowB) {
+  const cube = (col, row) => { const x = col, z = row - (col - (col & 1)) / 2; return [x, -x - z, z]; };
+  const a = cube(colA, rowA), b = cube(colB, rowB);
+  return (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])) / 2;
+}
+
 // ---- the hex record -------------------------------------------------------
 // Scalar fields default to ''. Sites and settlements are *arrays* of named
 // objects (backlog 9 + 12): a hex can hold zero, one, or many of each, and each

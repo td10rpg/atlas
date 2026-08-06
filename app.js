@@ -16,7 +16,7 @@ import {
 } from './wag.js';
 import {
   hexId, hexCenter, hexPoints, boardSize, neighbors, isPopulated, hasSite, hasSettlement,
-  emptyHex, emptySite, emptySettlement, serializeHex,
+  emptyHex, emptySite, emptySettlement, serializeHex, hexDistance,
 } from './hex.js';
 import * as store from './storage.js';
 import { TERRAIN_ICONS, terrainGlyph, overlayGlyph, dieGlyph, svgIcon } from './icons.js';
@@ -46,6 +46,7 @@ const TOOL_ICONS = {
   marker: '<path d="M12 21s6-5.7 6-11a6 6 0 0 0-12 0c0 5.3 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',
   river: '<path d="M3 7c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/><path d="M3 15c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/>',
   label: '<path d="M4 7h16M4 12h10M4 17h13"/>',
+  measure: '<path d="M3 15L15 3l6 6L9 21z"/><path d="M8 8l2 2M11 5l2 2M5 11l2 2"/>',
 };
 const WAG_LINES = [
   { key: 'weather', tag: 'Weather · Table A' },
@@ -211,15 +212,19 @@ function buildTools() {
     tool('site', 'Stamp a site (WAG)') +
     '<div class="sep"></div>' +
     tool('marker', 'Party marker — click a hex to place / move it') +
+    tool('measure', 'Measure — click two hexes for distance & travel time') +
     tool('erase', 'Erase hex');
 }
 
 function setTool(key) {
   S.tool = key;
   closeBrushMenu();
+  if (key !== 'measure') measure = { a: null, b: null };
   buildTools();
   renderHud();
   mapEl.classList.toggle('painting', key !== 'inspect');
+  drawOverlay();          // clear/redraw any measure line
+  updateMeasureBadge();
 }
 
 // ---- brush picker popover (terrain / region) ------------------------------
@@ -290,7 +295,8 @@ function renderHud() {
     `<span class="sep2">|</span> Scale ` +
     `<input type="number" data-hud="hexmiles" min="1" max="100" value="${S.atlas.hexMiles}" style="width:42px" title="miles across a hex"/>` +
     ` mi/hex (~${Math.round(0.8660254 * S.atlas.hexMiles * S.atlas.hexMiles)} sq&nbsp;mi)` +
-    `<span class="sep2">|</span> ${count} hex${count === 1 ? '' : 'es'}`;
+    `<span class="sep2">|</span> ${count} hex${count === 1 ? '' : 'es'}` +
+    `<span class="sep2">|</span> <input type="text" data-hud="jump" placeholder="⌖ 0805" title="Jump to a hex by its number, e.g. 0805" style="width:66px"/>`;
 }
 
 // ---- map render -----------------------------------------------------------
@@ -470,6 +476,47 @@ function openLabelEditor(clientX, clientY) {
   inp.addEventListener('blur', commit);
 }
 function closeLabelEditor() { const el = $('#label-input'); if (el) el.remove(); }
+
+// ---- measure tool ---------------------------------------------------------
+let measure = { a: null, b: null };
+function measureClick(id) {
+  if (!measure.a || measure.b) measure = { a: id, b: null };
+  else measure.b = id;
+  drawOverlay();
+  updateMeasureBadge();
+}
+function clearMeasure() { measure = { a: null, b: null }; updateMeasureBadge(); }
+function measureText() {
+  if (!measure.a) return '';
+  if (!measure.b) return 'Now click the destination hex…';
+  const A = parseId(measure.a), B = parseId(measure.b);
+  const d = hexDistance(A.col, A.row, B.col, B.row);
+  const miles = d * (S.atlas.hexMiles || 6);
+  const days = d / 4; // WAG wilderness pace ≈ 4 hexes/day
+  const dv = Math.round(days * 10) / 10;
+  const dayStr = d === 0 ? 'same hex' : days < 1 ? 'under a day' : `≈ ${dv} ${dv === 1 ? 'day' : 'days'}`;
+  return `${d} hex${d === 1 ? '' : 'es'} · ${miles} mi · ${dayStr}`;
+}
+function updateMeasureBadge() {
+  let el = $('#measure-badge');
+  const txt = S.tool === 'measure' && measure.a ? measureText() : '';
+  if (!txt) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement('div'); el.id = 'measure-badge'; el.className = 'measure-badge'; mapWrap.appendChild(el); }
+  el.textContent = txt;
+}
+
+// ---- jump to a hex by coordinate ------------------------------------------
+function jumpToHex(raw) {
+  const digits = String(raw).replace(/[^0-9]/g, '');
+  if (digits.length < 2) { toast('Enter a hex like 0805', true); return; }
+  const half = digits.length === 4 ? 2 : Math.ceil(digits.length / 2);
+  const col = +digits.slice(0, half) - 1, row = +digits.slice(half) - 1;
+  if (col < 0 || row < 0 || col >= S.atlas.cols || row >= S.atlas.rows) { toast('No such hex', true); return; }
+  const { x, y } = hexCenter(col, row, SIZE);
+  S.view = { x: x - S.view.w / 2, y: y - S.view.h / 2, w: S.view.w, h: S.view.h };
+  applyView();
+  setSelected(hexId(col, row));
+}
 
 // ---- rivers (freehand → snapped to an invisible sub-hex lattice) -----------
 // The river follows the CELLS of a finer hex grid laid over the map: one sub-hex
@@ -694,6 +741,15 @@ function drawOverlay() {
     const { x, y } = hexCenter(col, row, SIZE);
     s += markerGlyph(m, x, y);
   });
+  if (S.tool === 'measure' && measure.a) {
+    const A = parseId(measure.a); const pa = hexCenter(A.col, A.row, SIZE);
+    const dot = (p) => `<circle class="measure-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5"/>`;
+    s += dot(pa);
+    if (measure.b) {
+      const B = parseId(measure.b); const pb = hexCenter(B.col, B.row, SIZE);
+      s += `<line class="measure-line" x1="${pa.x.toFixed(1)}" y1="${pa.y.toFixed(1)}" x2="${pb.x.toFixed(1)}" y2="${pb.y.toFixed(1)}"/>` + dot(pb);
+    }
+  }
   ov.innerHTML = s;
 }
 
@@ -767,9 +823,10 @@ function wirePointer() {
     try { mapEl.setPointerCapture(e.pointerId); } catch {}
     const hex = e.target.closest('.hex');
     const downId = hex ? hex.dataset.id : null;
-    // River traces freehand; Label click-places (drag pans); other paint tools
+    // River traces freehand; Label/Measure click (drag pans); other paint tools
     // stamp on drag; Inspect pans.
-    const mode = S.tool === 'river' ? 'river' : S.tool === 'label' ? 'label'
+    const mode = S.tool === 'river' ? 'river'
+      : (S.tool === 'label' || S.tool === 'measure') ? S.tool
       : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
     pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId };
     if (mode === 'paint') paintHex(downId, true);
@@ -778,7 +835,7 @@ function wirePointer() {
   });
   mapEl.addEventListener('pointermove', (e) => {
     if (!pointer) return;
-    if (pointer.mode === 'pan' || pointer.mode === 'label') {
+    if (pointer.mode === 'pan' || pointer.mode === 'label' || pointer.mode === 'measure') {
       pan(e.clientX - pointer.lx, e.clientY - pointer.ly);
     } else if (pointer.mode === 'river') {
       pointer.raw.push(clientToBoard(e.clientX, e.clientY));
@@ -800,6 +857,8 @@ function wirePointer() {
       else { const [bx, by] = clientToBoard(e.clientX, e.clientY); deleteRiverAt(bx, by); }
     } else if (pointer.mode === 'label') {
       if (!pointer.moved) openLabelEditor(e.clientX, e.clientY);
+    } else if (pointer.mode === 'measure') {
+      if (!pointer.moved && pointer.downId) measureClick(pointer.downId);
     } else if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) {
       setSelected(pointer.downId);
     }
@@ -1314,6 +1373,9 @@ function wireEvents() {
       S.atlas.hexMiles = Math.max(1, Math.min(100, Math.round(Number(el.value)) || 6));
       persistConfig(); renderHud(); recordChange();
     }
+  });
+  hudEl.addEventListener('keydown', (e) => {
+    if (e.target.dataset.hud === 'jump' && e.key === 'Enter') { e.preventDefault(); jumpToHex(e.target.value); e.target.value = ''; }
   });
 
   connEl.addEventListener('click', (e) => {
