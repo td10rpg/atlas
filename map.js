@@ -6,7 +6,7 @@
 // the grid. normalize() coerces anything loaded from disk into a valid atlas so a
 // half-written folder degrades gracefully instead of crashing.
 
-import { REGIONS, iconForTerrain, rollTerrain, rollTerrainForHex, generateHex, EDITABLE_TABLES } from './wag.js';
+import { DEFAULT_REGIONS, setRegions, getRegions, iconForTerrain, rollTerrain, rollTerrainForHex, generateHex, EDITABLE_TABLES, TERRAINS } from './wag.js';
 import { emptyHex, isPopulated, hexId, neighbors } from './hex.js';
 import { HINTERLANDS_SEED } from './hinterlands-seed.js';
 
@@ -29,8 +29,23 @@ export function createAtlas(name = 'The Hinterlands') {
     rivers: [],     // atlas-level overlay: [ [[x,y], …], … ] — polylines of snapped
                     //   sub-hex-lattice vertices in board units (the river tool)
     labels: [],     // atlas-level overlay: [{ x, y, text }] — free text on the map
+    regions: DEFAULT_REGIONS.map((r) => ({ name: r.name, color: r.color, prefer: [...r.prefer] })), // editable (backlog 19)
     customTables: {}, // per-atlas WAG table overrides: { tableKey: [{name, desc}] } (backlog 4)
   };
+}
+
+const TERRAIN_KEYS = new Set(TERRAINS.map((t) => t.key));
+/** Coerce a raw regions array into clean { name, color, prefer:[terrains] }. */
+export function normalizeRegions(raw) {
+  const out = (Array.isArray(raw) ? raw : [])
+    .map((r) => {
+      if (!r || typeof r.name !== 'string' || !r.name.trim()) return null;
+      const color = typeof r.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(r.color) ? r.color : '#6b7280';
+      const prefer = (Array.isArray(r.prefer) ? r.prefer : []).filter((t) => TERRAIN_KEYS.has(t));
+      return { name: r.name.trim(), color, prefer: prefer.length ? prefer : [...TERRAIN_KEYS].filter((k) => k !== 'Urban') };
+    })
+    .filter(Boolean);
+  return out.length ? out : DEFAULT_REGIONS.map((r) => ({ name: r.name, color: r.color, prefer: [...r.prefer] }));
 }
 
 /** Coerce a raw labels array into clean { x, y, text } records. */
@@ -112,6 +127,7 @@ export function normalizeConfig(raw) {
     a.markers = normalizeMarkers(raw.markers);
     a.rivers = normalizeRivers(raw.rivers);
     a.labels = normalizeLabels(raw.labels);
+    a.regions = normalizeRegions(raw.regions);
     a.customTables = normalizeCustomTables(raw.customTables);
   }
   return a;
@@ -207,4 +223,4 @@ export function createRandomAtlas(cols, rows) {
 }
 
 // Re-exports so app.js has one import surface for model concerns.
-export { REGIONS, rollTerrain, rollTerrainForHex, generateHex };
+export { DEFAULT_REGIONS, setRegions, getRegions, rollTerrain, rollTerrainForHex, generateHex, TERRAINS };

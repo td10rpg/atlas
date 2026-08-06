@@ -8,7 +8,7 @@
 
 import {
   createStarterAtlas, createAtlas, createRandomAtlas, getHex, ensureHex, applyTerrainIcon,
-  REGIONS, generateHex, rollTerrain, rollTerrainForHex, normalizeConfig, loadHexes,
+  DEFAULT_REGIONS, setRegions, getRegions, generateHex, rollTerrain, rollTerrainForHex, normalizeConfig, loadHexes,
 } from './map.js';
 import {
   TERRAINS, rerollField, rollSite, rollSettlement, rollSiteFields, rollSettlementFields,
@@ -157,6 +157,7 @@ function startInMemory(msg) {
 function afterLoad() {
   removeLanding();
   setTableOverrides(S.atlas.customTables || {}); // apply per-atlas WAG table edits (backlog 4)
+  setRegions(S.atlas.regions);                   // apply per-atlas regions (backlog 19)
   renderShell();
   renderMap();
   fitView();
@@ -199,7 +200,7 @@ function buildTools() {
     `<button class="tool ${S.tool === key ? 'active' : ''}" data-tool="${key}" title="${title}">` +
     svgIcon(TOOL_ICONS[key], { size: 22 }) +
     (key === 'terrain' ? `<span class="swatch" style="background:${TERRAIN_COLOR[S.brushTerrain]}"></span>` : '') +
-    (key === 'region' ? `<span class="swatch" style="background:${REGIONS.find((r) => r.name === S.brushRegion)?.color}"></span>` : '') +
+    (key === 'region' ? `<span class="swatch" style="background:${(S.atlas.regions || []).find((r) => r.name === S.brushRegion)?.color}"></span>` : '') +
     `</button>`;
   toolsEl.innerHTML =
     tool('inspect', 'Inspect / select (drag to pan)') +
@@ -235,7 +236,7 @@ function openBrushMenu(kind, anchorBtn) {
   closeBrushMenu();
   const items = kind === 'terrain'
     ? TERRAINS.map((t) => ({ v: t.key, label: t.key, color: TERRAIN_COLOR[t.key] }))
-    : REGIONS.map((r) => ({ v: r.name, label: r.name, color: r.color }));
+    : (S.atlas.regions || []).map((r) => ({ v: r.name, label: r.name, color: r.color }));
   const cur = kind === 'terrain' ? S.brushTerrain : S.brushRegion;
   const el = document.createElement('div');
   el.id = 'brush-menu'; el.className = 'brush-menu';
@@ -244,7 +245,8 @@ function openBrushMenu(kind, anchorBtn) {
     `<div class="brush-menu-head">${kind === 'terrain' ? 'Terrain brush' : 'Region brush'}</div>` +
     items.map((o) =>
       `<button class="brush-opt${o.v === cur ? ' active' : ''}" role="menuitemradio" aria-checked="${o.v === cur}" data-brush="${escapeHtml(o.v)}">` +
-      `<span class="swatch" style="background:${o.color}"></span><span class="brush-opt-label">${escapeHtml(o.label)}</span></button>`).join('');
+      `<span class="swatch" style="background:${o.color}"></span><span class="brush-opt-label">${escapeHtml(o.label)}</span></button>`).join('') +
+    (kind === 'region' ? `<button class="brush-opt brush-edit" data-brush-edit="1"><span class="brush-opt-label">✎ Edit regions…</span></button>` : '');
   document.body.appendChild(el);
   // Anchor to the right of the tool button, clamped into the viewport.
   const r = anchorBtn.getBoundingClientRect();
@@ -254,6 +256,7 @@ function openBrushMenu(kind, anchorBtn) {
   el.style.top = `${top}px`;
   brushMenuKind = kind;
   el.addEventListener('click', (e) => {
+    if (e.target.closest('[data-brush-edit]')) { closeBrushMenu(); openRegionEditor(); return; }
     const b = e.target.closest('[data-brush]'); if (!b) return;
     if (kind === 'terrain') S.brushTerrain = b.dataset.brush; else S.brushRegion = b.dataset.brush;
     closeBrushMenu();
@@ -276,6 +279,83 @@ function onBrushOutside(e) {
   closeBrushMenu();
 }
 function onBrushEsc(e) { if (e.key === 'Escape') { e.preventDefault(); closeBrushMenu(); } }
+
+// ---- region editor (backlog 19: regions are editable atlas data) ----------
+let regionTimer = null, regionBaseline = [];
+function openRegionEditor() { renderRegionModal(); }
+function renderRegionModal() {
+  let el = $('#region-modal');
+  if (!el) {
+    el = document.createElement('div'); el.id = 'region-modal'; el.className = 'modal';
+    document.body.appendChild(el);
+    el.addEventListener('click', onRegionModalClick);
+    el.addEventListener('input', onRegionModalInput);
+  }
+  regionBaseline = (S.atlas.regions || []).map((r) => r.name);
+  const rows = (S.atlas.regions || []).map((r, i) => {
+    const chips = TERRAINS.map((t) => {
+      const on = r.prefer.includes(t.key);
+      return `<button class="terr-chip${on ? ' on' : ''}" data-rrow="${i}" data-terr="${escapeHtml(t.key)}">` +
+        `<span class="swatch" style="background:${TERRAIN_COLOR[t.key]}"></span>${escapeHtml(t.key)}</button>`;
+    }).join('');
+    return `<div class="region-row">` +
+      `<input type="color" class="region-color" data-rrow="${i}" value="${r.color}" title="Region colour"/>` +
+      `<input class="region-name" data-rrow="${i}" value="${escapeHtml(r.name)}" placeholder="Region name" spellcheck="false"/>` +
+      `<button class="iconbtn danger" data-ract="del" data-rrow="${i}" title="Remove region">✕</button>` +
+      `<div class="region-palette">${chips}</div>` +
+    `</div>`;
+  }).join('');
+  el.innerHTML =
+    `<div class="modal-card" role="dialog" aria-label="Edit regions">` +
+      `<div class="modal-head"><h3>Regions</h3><button class="btn small" data-ract="close">Done</button></div>` +
+      `<p class="modal-note">Regions tint the map and constrain WAG terrain (a hex only rolls terrains in its region's palette). Rename, recolour, toggle each region's terrains, add or remove regions. Renaming keeps existing hex assignments.</p>` +
+      `<div class="region-rows">${rows || '<p class="modal-note">No regions — add one.</p>'}</div>` +
+      `<div class="modal-foot"><button class="btn small" data-ract="add">＋ Add region</button>` +
+        `<button class="btn small ghost" data-ract="reset" title="Restore the Hinterlands regions">Reset to default</button></div>` +
+    `</div>`;
+}
+function renameRegionRefs(oldName, newName) {
+  if (!oldName || oldName === newName) return;
+  Object.values(S.atlas.hexes).forEach((h) => { if (h.region === oldName) h.region = newName; });
+  if (S.brushRegion === oldName) S.brushRegion = newName;
+}
+function commitRegions() {
+  clearTimeout(regionTimer); regionTimer = null;
+  (S.atlas.regions || []).forEach((r, i) => {
+    if (regionBaseline[i] != null && r.name !== regionBaseline[i]) { renameRegionRefs(regionBaseline[i], r.name); regionBaseline[i] = r.name; }
+  });
+  setRegions(S.atlas.regions);
+  persistConfig();
+  renderMap(); applyView();
+  renderInspector();
+  recordChange();
+}
+function onRegionModalInput(e) {
+  const t = e.target; const i = +t.dataset.rrow;
+  if (Number.isNaN(i) || !S.atlas.regions[i]) return;
+  if (t.classList.contains('region-name')) S.atlas.regions[i].name = t.value;
+  else if (t.classList.contains('region-color')) S.atlas.regions[i].color = t.value;
+  clearTimeout(regionTimer); regionTimer = setTimeout(commitRegions, 250);
+}
+function onRegionModalClick(e) {
+  if (e.target.id === 'region-modal') { closeRegionModal(); return; } // backdrop
+  const chip = e.target.closest('[data-terr]');
+  if (chip) {
+    const i = +chip.dataset.rrow, key = chip.dataset.terr, r = S.atlas.regions[i]; if (!r) return;
+    if (r.prefer.includes(key)) r.prefer = r.prefer.filter((x) => x !== key); else r.prefer.push(key);
+    commitRegions(); renderRegionModal(); return;
+  }
+  const b = e.target.closest('[data-ract]'); if (!b) return;
+  const a = b.dataset.ract;
+  if (a === 'close') { closeRegionModal(); return; }
+  if (a === 'del') { S.atlas.regions.splice(+b.dataset.rrow, 1); commitRegions(); renderRegionModal(); return; }
+  if (a === 'add') { S.atlas.regions.push({ name: 'New Region', color: '#7b8a8a', prefer: TERRAINS.map((t) => t.key).filter((k) => k !== 'Urban') }); commitRegions(); renderRegionModal(); return; }
+  if (a === 'reset') { S.atlas.regions = DEFAULT_REGIONS.map((r) => ({ name: r.name, color: r.color, prefer: [...r.prefer] })); commitRegions(); renderRegionModal(); }
+}
+function closeRegionModal() {
+  if (regionTimer) commitRegions();
+  const el = $('#region-modal'); if (el) el.remove();
+}
 
 // ---- HUD (zoom, labels, grid size, brush context) -------------------------
 
@@ -308,7 +388,7 @@ function buildHex(col, row) {
   const { x: cx, y: cy } = hexCenter(col, row, SIZE);
   const pts = hexPoints(cx, cy, SIZE);
 
-  const region = rec && rec.region ? REGIONS.find((r) => r.name === rec.region) : null;
+  const region = rec && rec.region ? (S.atlas.regions || []).find((r) => r.name === rec.region) : null;
   const stroke = region && region.name !== 'Unassigned' ? region.color : 'var(--hex-line)';
   const isOcean = rec && rec.terrain === 'Ocean or Coast';
   const terrColor = rec && rec.terrain ? TERRAIN_COLOR[rec.terrain] : null;
@@ -1012,7 +1092,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], customTables: S.atlas.customTables || {} },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], regions: S.atlas.regions || [], customTables: S.atlas.customTables || {} },
       hexes,
     }));
   } catch { /* quota or private mode — ignore */ }
@@ -1045,6 +1125,7 @@ function snapshot() {
     markers: clone(S.atlas.markers || []),
     rivers: clone(S.atlas.rivers || []),
     labels: clone(S.atlas.labels || []),
+    regions: clone(S.atlas.regions || DEFAULT_REGIONS),
     customTables: clone(S.atlas.customTables || {}),
     hexes: clone(S.atlas.hexes || {}),
   };
@@ -1069,6 +1150,7 @@ function applySnapshot(snap) {
   S.atlas.markers = clone(snap.markers);
   S.atlas.rivers = clone(snap.rivers || []);
   S.atlas.labels = clone(snap.labels || []);
+  S.atlas.regions = clone(snap.regions || DEFAULT_REGIONS); setRegions(S.atlas.regions);
   S.atlas.customTables = clone(snap.customTables || {}); setTableOverrides(S.atlas.customTables);
   const newHexes = clone(snap.hexes);
   S.atlas.hexes = newHexes;
@@ -1157,7 +1239,7 @@ function bulkClear() {
 function renderBulkInspector() {
   const n = S.selection.size;
   const terrainOpts = TERRAINS.map((t) => `<option value="${t.key}">${t.key}</option>`).join('');
-  const regionOpts = REGIONS.map((r) => `<option value="${escapeHtml(r.name)}">${escapeHtml(r.name)}</option>`).join('');
+  const regionOpts = (S.atlas.regions || []).map((r) => `<option value="${escapeHtml(r.name)}">${escapeHtml(r.name)}</option>`).join('');
   inspectorEl.innerHTML =
     `<div class="insp">` +
       `<div class="insp-head"><h3>${n} hexes selected</h3></div>` +
@@ -1211,7 +1293,7 @@ function renderInspector() {
       (locked ? `<div class="lock-note">Canon hex — its name, terrain, and places are fixed. You can still roll the WAG survey and take notes.</div>` : '') +
       `<div class="two-col">` +
         `<div class="field"><label>Region</label><select name="region" ${locked ? 'disabled' : ''}>` +
-          REGIONS.map((r) => `<option ${r.name === (h.region || 'Unassigned') ? 'selected' : ''}>${r.name}</option>`).join('') +
+          (S.atlas.regions || []).map((r) => `<option ${r.name === (h.region || 'Unassigned') ? 'selected' : ''}>${r.name}</option>`).join('') +
         `</select></div>` +
         `<div class="field"><label>Terrain</label><select name="terrain" ${locked ? 'disabled' : ''}>` +
           `<option value="" ${!h.terrain ? 'selected' : ''}>— unsurveyed —</option>` +
@@ -1613,7 +1695,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], customTables: S.atlas.customTables || {} }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], regions: S.atlas.regions || [], customTables: S.atlas.customTables || {} }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

@@ -60,7 +60,10 @@ const NON_URBAN = TERRAINS.map((t) => t.key).filter((k) => k !== 'Urban');
 // region only ever rolls one of these, so terrain always reads as consistent with the
 // region (see rollTerrainForHex). The signature terrain is repeated so it dominates.
 // Ocean is left out of every land region (the sea is seed-placed, never rolled).
-export const REGIONS = [
+// The Hinterlands seed regions — the DEFAULT for a new atlas. Regions are now
+// atlas data (editable, per backlog 19): the app registers the atlas's regions
+// via setRegions so terrain rolls follow them; this const is the fallback/seed.
+export const DEFAULT_REGIONS = [
   { name: 'Unassigned',              color: '#6b7280', prefer: NON_URBAN },
   { name: 'The River Settlements',   color: '#2f7d8f', prefer: ['Swamp or Wetlands', 'Swamp or Wetlands', 'Plains'] },
   { name: 'The Pine Expanse',        color: '#2f7d4f', prefer: ['Forest or Jungle', 'Forest or Jungle', 'Forest or Jungle', 'Hills or Mountains'] },
@@ -69,8 +72,13 @@ export const REGIONS = [
   { name: 'The White March',         color: '#5a6f9a', prefer: ['Tundra', 'Tundra', 'Tundra', 'Hills or Mountains', 'Forest or Jungle'] },
 ];
 
+let ACTIVE_REGIONS = DEFAULT_REGIONS;
+/** Register the current atlas's regions (like setTableOverrides). */
+export function setRegions(regions) { ACTIVE_REGIONS = (Array.isArray(regions) && regions.length) ? regions : DEFAULT_REGIONS; }
+export function getRegions() { return ACTIVE_REGIONS; }
+
 export function regionByName(name) {
-  return REGIONS.find((r) => r.name === name) || REGIONS[0];
+  return ACTIVE_REGIONS.find((r) => r.name === name) || ACTIVE_REGIONS[0];
 }
 
 /** Weighted terrain roll for a region (or uniform for the unassigned frontier). */

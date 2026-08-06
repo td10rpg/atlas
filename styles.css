@@ -151,6 +151,18 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .brush-opt.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .brush-opt .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.3); flex: 0 0 auto; }
 .brush-opt-label { white-space: nowrap; }
+.brush-edit { border-top: 1px solid var(--line); border-radius: 0; margin-top: 4px; color: var(--accent); }
+
+/* ---- region editor ---- */
+.region-rows { overflow-y: auto; padding: 8px 18px; display: flex; flex-direction: column; gap: 12px; }
+.region-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 8px; align-items: center; }
+.region-color { width: 34px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 5px; background: var(--panel-2); cursor: pointer; }
+.region-name { background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 6px 9px; font-family: var(--serif); font-size: 14px; color: var(--ink); }
+.region-name:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.region-palette { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 5px; }
+.terr-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 20px; padding: 3px 9px 3px 4px; font-size: 11.5px; color: var(--ink-dim); cursor: pointer; }
+.terr-chip .swatch { width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.3); }
+.terr-chip.on { color: var(--ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 
 /* ---- map ---- */
 .mapwrap { position: relative; background: var(--map-bg); overflow: hidden; min-width: 0; }
