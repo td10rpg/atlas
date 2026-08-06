@@ -7,7 +7,8 @@
 // half-written folder degrades gracefully instead of crashing.
 
 import { REGIONS, iconForTerrain, rollTerrain, generateHex } from './wag.js';
-import { hexId, emptyHex, isPopulated } from './hex.js';
+import { emptyHex, isPopulated } from './hex.js';
+import { HINTERLANDS_SEED } from './hinterlands-seed.js';
 
 export const VERSION = 1;
 export const DEFAULT_COLS = 16;
@@ -90,81 +91,50 @@ export function loadHexes(atlas, records) {
   return atlas;
 }
 
-// ---- the canon seed (the pre-populated ~5%) -------------------------------
-// The handful of hexes that anchor Hinterlands canon: Fort Caspar at the center,
-// the five region anchors around it. Placed plausibly (canonical coordinates
-// aren't published) and flagged canon:true. Written only into a fresh atlas.
+// ---- the Hinterlands seed -------------------------------------------------
+// The starter atlas IS the Hinterlands, converted from the canonical Fort world
+// map into native hexes (see hinterlands-seed.js / scripts/gen-seed.mjs): the sea
+// as Ocean-or-Coast hexes, the continent partitioned into the five regions, and
+// the six canon towns placed and locked. Land hexes carry a region but no survey
+// content — that's still yours to roll with the WAG.
 
-const CANON = [
-  {
-    col: 8, row: 6, name: 'Fort Caspar', region: 'Unassigned', terrain: 'Urban',
-    settlementType: 'Fort stronghold — a black-basalt fort at the confluence of two rivers, atop a continental cliff; some 200 souls under an iron-willed Warrior.',
-    settlementConflict: 'The Dreamer stirs — each night, 1-in-5 a Fort NPC hears the Call and turns on another. Order is reactive; the party is the only initiative the good guys have.',
-    factions: ['Fort Caspar', 'The Church of the Northern Light', 'The Sunless Court'],
-    notes: 'The gate to the Hinterlands. Tavern, church (Bishop + 2 deacons), forge, reliquary, library (a hobbit Wizard curator and quiet occult scholar), a Level 4 elven Cleric healer (resurrection, 50 gp), the master-at-arms, and the rumored Black Cells beneath.',
-  },
-  {
-    col: 4, row: 9, name: 'Three Branches Landing', region: 'The River Settlements', terrain: 'Swamp or Wetlands',
-    settlementType: 'Barge landing — the anchor of the delta and barge country, a Mississippi-steamboat world of pilings and tar.',
-    settlementConflict: 'Sheriff Toby Vell keeps a fraying peace; the Black Sluice moves cargo the law pretends not to see.',
-    factions: ['The Black Sluice'],
-    notes: 'Anchor town of the River Settlements.',
-  },
-  {
-    col: 6, row: 3, name: 'Hollowpine', region: 'The Pine Expanse', terrain: 'Forest or Jungle',
-    settlementType: 'Trapper town — the anchor of the vast boreal Pine Expanse (a Pacific-Northwest / Cascades wood).',
-    settlementConflict: 'Sheriff Aelwyn Greyscale holds the line where the Long Pine Whistle gang runs the timber trails.',
-    factions: ['The Long Pine Whistle'],
-    notes: 'Anchor town of the Pine Expanse. The Cold Caverns are a peer region below this country, not a dungeon.',
-  },
-  {
-    col: 11, row: 8, name: 'The Bastion at Stonefall', region: 'The Bastion at Stonefall', terrain: 'Hills or Mountains',
-    settlementType: 'Walled town — a Tombstone/Dodge in a basalt gorge.',
-    settlementConflict: 'Sheriff Garrick Holm, a former Fort officer, has not smiled since; the Frostmelt Boys test his walls nightly.',
-    factions: ['The Frostmelt Boys'],
-    notes: 'Anchor town of the Bastion region.',
-  },
-  {
-    col: 12, row: 4, name: 'Sodwater', region: 'The Meltlands', terrain: 'Swamp or Wetlands',
-    settlementType: 'Mining camp — the anchor of the gold-rush bog country (California 1849 / Klondike 1898).',
-    settlementConflict: '"Wandering" Cay Roeber rides a circuit for law; claim-jumping and the false thaw kill in equal measure.',
-    factions: ['Hollander’s Crew'],
-    notes: 'Anchor camp of the Meltlands.',
-  },
-  {
-    col: 3, row: 3, name: 'Mons Albus', region: 'The White March', terrain: 'Tundra',
-    settlementType: 'Mission station — the anchor of the northwestern foothills, snow nine months a year (mission-station country, the Jesuit reductions).',
-    settlementConflict: 'Brother Halvard is sheriff and cleric both; the Mission Spreads, and the Vargoth paint marks that match no known band.',
-    factions: ['The Church of the Northern Light', 'The Vargoth'],
-    notes: 'Anchor station of the White March.',
-  },
-];
+function hexFromSeed(id, s) {
+  const h = emptyHex(id);
+  h.name = s.name || '';
+  h.region = s.region || 'Unassigned';
+  h.terrain = s.terrain || '';
+  h.icon = s.icon || '';
+  h.canon = !!s.canon;
+  h.settlements = Array.isArray(s.settlements)
+    ? s.settlements.map((x) => ({ name: x.name || '', type: x.type || '', conflict: x.conflict || '' })) : [];
+  h.sites = Array.isArray(s.sites) ? s.sites : [];
+  h.factions = Array.isArray(s.factions) ? s.factions : [];
+  h.notes = s.notes || '';
+  if (!h.icon) applyTerrainIcon(h);
+  return h;
+}
 
-/** Build the canon hex records for a fresh atlas. */
-export function seedCanon() {
+/** Build the Hinterlands hex records from the baked seed. */
+export function seedHinterlands() {
   const out = {};
-  CANON.forEach((c) => {
-    const id = hexId(c.col, c.row);
-    const h = emptyHex(id);
-    Object.assign(h, {
-      name: c.name, region: c.region, terrain: c.terrain,
-      settlements: c.settlementType
-        ? [{ name: c.name, type: c.settlementType, conflict: c.settlementConflict || '' }]
-        : [],
-      sites: [],
-      factions: c.factions || [], notes: c.notes || '',
-      canon: true, generatedAt: '',
-    });
-    applyTerrainIcon(h);
-    out[id] = h;
+  const src = (HINTERLANDS_SEED && HINTERLANDS_SEED.hexes) || {};
+  Object.keys(src).forEach((id) => {
+    const h = hexFromSeed(id, src[id]);
+    if (isPopulated(h)) out[id] = h; // skip blank 'Beyond the Frontier' cells
   });
   return out;
 }
 
-/** A brand-new atlas seeded (or not) with Hinterlands canon. */
-export function createStarterAtlas(withCanon = true) {
+/** A brand-new atlas — the Hinterlands map, or (withHinterlands=false) a blank grid. */
+export function createStarterAtlas(withHinterlands = true) {
   const a = createAtlas();
-  if (withCanon) a.hexes = seedCanon();
+  if (withHinterlands && HINTERLANDS_SEED) {
+    a.name = HINTERLANDS_SEED.name || a.name;
+    a.cols = HINTERLANDS_SEED.cols || a.cols;
+    a.rows = HINTERLANDS_SEED.rows || a.rows;
+    a.hexMiles = HINTERLANDS_SEED.hexMiles || a.hexMiles;
+    a.hexes = seedHinterlands();
+  }
   return a;
 }
 

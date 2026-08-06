@@ -24,7 +24,13 @@
 - [x] **12. Multiple places per hex** — sites/settlements are arrays; stamp adds,
   inspector removes; map badge shows ×N. File format now stores them as JSON in
   the frontmatter + `### name` body subsections, with legacy flat files migrated.
-- [ ] 3, 4, 5, 6, 7, 8, 15, 18 — see below.
+- [x] **3. The Hinterlands as native hexes** — the starter atlas IS the Fort world
+  map converted to hexes (`scripts/gen-seed.mjs` → `hinterlands-seed.js`): teal
+  sea → Ocean-or-Coast hexes, the continent partitioned into the five regions by
+  nearest anchor, the six canon towns placed and locked. **Not a background
+  layer.** Regions are a Voronoi approximation — refine by hand. (26×16.)
+- [ ] 4, 5, 6, 7, 8, 15, 18 — see below. (Item 6 = a *general* in-app importer for
+  any map; the Hinterlands is baked via the build script above.)
 
 Assets pulled from `td10rpg/td10` for the remaining items live in `assets/`
 (`the-fort-world-map.png`, `wag-terrain-key.png`). The canonical WAG tool is at
