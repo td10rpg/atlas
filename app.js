@@ -61,7 +61,8 @@ const WAG_LINES = [
 const S = {
   atlas: createAtlas(),
   dir: null,            // FileSystemDirectoryHandle, or null (in-memory / localStorage)
-  selected: null,       // hex id
+  selected: null,       // primary selected hex id (drives the single-hex inspector)
+  selection: new Set(), // all selected hex ids (multi-select; bulk panel when > 1)
   tool: 'inspect',
   brushTerrain: 'Forest or Jungle',
   brushRegion: 'The Pine Expanse',
@@ -518,6 +519,21 @@ function jumpToHex(raw) {
   setSelected(hexId(col, row));
 }
 
+// ---- marquee / box select (Inspect tool + Shift-drag) ---------------------
+let marquee = null;
+function selectHexesInBox(box) {
+  const x0 = Math.min(box.x0, box.x1), x1 = Math.max(box.x0, box.x1);
+  const y0 = Math.min(box.y0, box.y1), y1 = Math.max(box.y0, box.y1);
+  const ids = [];
+  for (let col = 0; col < S.atlas.cols; col++) {
+    for (let row = 0; row < S.atlas.rows; row++) {
+      const { x, y } = hexCenter(col, row, SIZE);
+      if (x >= x0 && x <= x1 && y >= y0 && y <= y1) ids.push(hexId(col, row));
+    }
+  }
+  if (ids.length) setSelection(ids);
+}
+
 // ---- rivers (freehand → snapped to an invisible sub-hex lattice) -----------
 // The river follows the CELLS of a finer hex grid laid over the map: one sub-hex
 // per mile, so a 6-mile hex carries a 6× lattice (and it scales with the atlas's
@@ -730,10 +746,15 @@ function drawOverlay() {
   const ov = mapEl.querySelector('#overlay');
   if (!ov) return;
   let s = '';
-  if (S.selected) {
-    const { col, row } = parseId(S.selected);
+  S.selection.forEach((id) => {
+    const { col, row } = parseId(id);
     const { x, y } = hexCenter(col, row, SIZE);
     s += `<polygon class="sel-outline" points="${hexPoints(x, y, SIZE - 2.6)}"/>`;
+  });
+  if (marquee) {
+    const x = Math.min(marquee.x0, marquee.x1), y = Math.min(marquee.y0, marquee.y1);
+    const w = Math.abs(marquee.x1 - marquee.x0), h = Math.abs(marquee.y1 - marquee.y0);
+    s += `<rect class="marquee" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>`;
   }
   (S.atlas.markers || []).forEach((m) => {
     const { col, row } = parseId(m.hexId);
@@ -823,19 +844,24 @@ function wirePointer() {
     try { mapEl.setPointerCapture(e.pointerId); } catch {}
     const hex = e.target.closest('.hex');
     const downId = hex ? hex.dataset.id : null;
-    // River traces freehand; Label/Measure click (drag pans); other paint tools
-    // stamp on drag; Inspect pans.
+    // River traces freehand; Label/Measure click (drag pans); Inspect+Shift
+    // marquee-selects; other paint tools stamp on drag; Inspect pans.
     const mode = S.tool === 'river' ? 'river'
       : (S.tool === 'label' || S.tool === 'measure') ? S.tool
+      : (S.tool === 'inspect' && e.shiftKey) ? 'marquee'
       : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
     pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId };
     if (mode === 'paint') paintHex(downId, true);
     if (mode === 'river') pointer.raw = [clientToBoard(e.clientX, e.clientY)];
+    else if (mode === 'marquee') { const [bx, by] = clientToBoard(e.clientX, e.clientY); marquee = { x0: bx, y0: by, x1: bx, y1: by }; }
     else mapEl.classList.add('grabbing');
   });
   mapEl.addEventListener('pointermove', (e) => {
     if (!pointer) return;
-    if (pointer.mode === 'pan' || pointer.mode === 'label' || pointer.mode === 'measure') {
+    if (pointer.mode === 'marquee') {
+      const [bx, by] = clientToBoard(e.clientX, e.clientY);
+      if (marquee) { marquee.x1 = bx; marquee.y1 = by; drawOverlay(); }
+    } else if (pointer.mode === 'pan' || pointer.mode === 'label' || pointer.mode === 'measure') {
       pan(e.clientX - pointer.lx, e.clientY - pointer.ly);
     } else if (pointer.mode === 'river') {
       pointer.raw.push(clientToBoard(e.clientX, e.clientY));
@@ -859,6 +885,11 @@ function wirePointer() {
       if (!pointer.moved) openLabelEditor(e.clientX, e.clientY);
     } else if (pointer.mode === 'measure') {
       if (!pointer.moved && pointer.downId) measureClick(pointer.downId);
+    } else if (pointer.mode === 'marquee') {
+      const box = marquee; marquee = null;
+      if (pointer.moved && box) selectHexesInBox(box);
+      else if (pointer.downId) toggleInSelection(pointer.downId);
+      drawOverlay();
     } else if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) {
       setSelected(pointer.downId);
     }
@@ -1074,11 +1105,74 @@ function redo() {
 
 function setSelected(id) {
   S.selected = id;
+  S.selection = id ? new Set([id]) : new Set();
+  drawOverlay();
+  renderInspector();
+}
+/** Toggle a hex in the multi-selection (shift-click). */
+function toggleInSelection(id) {
+  if (S.selection.has(id)) { S.selection.delete(id); if (S.selected === id) S.selected = [...S.selection][S.selection.size - 1] || null; }
+  else { S.selection.add(id); S.selected = id; }
+  drawOverlay();
+  renderInspector();
+}
+/** Replace the selection with a set of ids (marquee). */
+function setSelection(ids) {
+  S.selection = new Set(ids);
+  S.selected = ids.length ? ids[ids.length - 1] : null;
   drawOverlay();
   renderInspector();
 }
 
+// ---- bulk apply to the multi-selection ------------------------------------
+// Mutate every selected hex (skipping canon), then persist + repaint each.
+function bulkApply(fn) {
+  const ids = [...S.selection];
+  let n = 0;
+  ids.forEach((id) => {
+    const h = getHex(S.atlas, id);
+    if (h && h.canon) return;               // canon hexes are locked
+    const hx = ensureHex(S.atlas, id);
+    fn(hx);
+    persistHex(id); refreshHex(id); n++;
+  });
+  renderHud(); renderInspector(); recordChange();
+  if (n) toast(`Updated ${n} hex${n === 1 ? '' : 'es'}.`);
+}
+function bulkClear() {
+  const ids = [...S.selection];
+  let n = 0;
+  ids.forEach((id) => {
+    const h = getHex(S.atlas, id);
+    if (h && h.canon) return;
+    if (!h) return;
+    delete S.atlas.hexes[id];
+    if (S.dir) store.removeHex(S.dir, id).catch(() => {});
+    refreshHex(id); n++;
+  });
+  saveLocal(); renderHud(); renderInspector(); recordChange();
+  if (n) toast(`Cleared ${n} hex${n === 1 ? '' : 'es'}.`);
+}
+
+function renderBulkInspector() {
+  const n = S.selection.size;
+  const terrainOpts = TERRAINS.map((t) => `<option value="${t.key}">${t.key}</option>`).join('');
+  const regionOpts = REGIONS.map((r) => `<option value="${escapeHtml(r.name)}">${escapeHtml(r.name)}</option>`).join('');
+  inspectorEl.innerHTML =
+    `<div class="insp">` +
+      `<div class="insp-head"><h3>${n} hexes selected</h3></div>` +
+      `<p class="modal-note">Apply to all selected. Canon hexes are skipped. Shift-drag or Shift-click to change the selection.</p>` +
+      `<div class="field"><label>Set terrain</label><select data-bulk="terrain"><option value="">—</option>${terrainOpts}</select></div>` +
+      `<div class="field"><label>Set region</label><select data-bulk="region"><option value="">—</option>${regionOpts}</select></div>` +
+      `<div class="danger-row">` +
+        `<button class="btn small" data-bulk-action="generate" title="Roll the WAG for every selected hex">Generate all (WAG)</button>` +
+        `<button class="btn small danger" data-bulk-action="clear">Clear all</button>` +
+      `</div>` +
+    `</div>`;
+}
+
 function renderInspector() {
+  if (S.selection.size > 1) { renderBulkInspector(); return; }
   if (!S.selected) {
     inspectorEl.innerHTML =
       `<div class="insp-empty"><h3>No hex selected</h3>` +
@@ -1215,6 +1309,13 @@ function syncNotesTab() {
 // ---- inspector actions ----------------------------------------------------
 
 function onInspectorClick(e) {
+  const bulkBtn = e.target.closest('[data-bulk-action]');
+  if (bulkBtn) {
+    const a = bulkBtn.dataset.bulkAction;
+    if (a === 'generate') bulkApply((hx) => Object.assign(hx, generateHex(hx.terrain || 'Plains')));
+    else if (a === 'clear') bulkClear();
+    return;
+  }
   const btn = e.target.closest('[data-action],[data-tab]');
   if (!btn || !S.selected) return;
   const id = S.selected;
@@ -1281,6 +1382,8 @@ function commit(id) {
 
 function onInspectorChange(e) {
   const t = e.target;
+  if (t.dataset && t.dataset.bulk === 'terrain' && t.value) { bulkApply((hx) => { hx.terrain = t.value; applyTerrainIcon(hx); }); t.value = ''; return; }
+  if (t.dataset && t.dataset.bulk === 'region' && t.value) { bulkApply((hx) => { hx.region = t.value; }); t.value = ''; return; }
   if (!S.selected) return;
   const id = S.selected;
   const cur = getHex(S.atlas, id);
