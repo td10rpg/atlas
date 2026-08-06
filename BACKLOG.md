@@ -29,8 +29,14 @@
   sea → Ocean-or-Coast hexes, the continent partitioned into the five regions by
   nearest anchor, the six canon towns placed and locked. **Not a background
   layer.** Regions are a Voronoi approximation — refine by hand. (26×16.)
-- [ ] 4, 5, 6, 7, 8, 15, 18 — see below. (Item 6 = a *general* in-app importer for
-  any map; the Hinterlands is baked via the build script above.)
+- [x] **7. Icon polish** — refined the weaker glyphs (twin-peak mountains with snow
+  caps, a cleaner tundra flake); set kept coherent. *(More can follow.)*
+- [x] **8. Naturalistic hexes** — open sea is a continuous teal expanse (no wave
+  glyph per hex); land terrain and region get a stable per-hex value jitter;
+  unsurveyed land is softly tinted by its region so the five regions read as
+  zones. *(Textured fills / feathered coastlines still possible later.)*
+- [ ] 4, 5, 6, 15, 18 — see below. (Item 6 = a *general* in-app importer for any
+  map; the Hinterlands is baked via the build script above.)
 
 Assets pulled from `td10rpg/td10` for the remaining items live in `assets/`
 (`the-fort-world-map.png`, `wag-terrain-key.png`). The canonical WAG tool is at

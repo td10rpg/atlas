@@ -15,7 +15,7 @@ export const TERRAIN_ICONS = {
   },
   mountain: {
     label: 'Mountains',
-    svg: '<path d="M3 19l6-11 3.2 5.6L14.5 9 21 19z"/><path d="M6.8 13.7l2.2-1.2 1.6 1.3 1.4-.9" fill="none"/>',
+    svg: '<path d="M2 20l6-12 3.6 7 2.4-4L22 20z"/><path d="M6.2 13.6l1.8-1.1 1.5 1.2" fill="none"/><path d="M15.2 13.2l1.2-.9 1.1 1" fill="none"/>',
   },
   hills: {
     label: 'Hills',
@@ -35,7 +35,7 @@ export const TERRAIN_ICONS = {
   },
   tundra: {
     label: 'Tundra',
-    svg: '<path d="M12 3v18M4.5 7.5l15 9M19.5 7.5l-15 9"/><path d="M12 6l-2 2M12 6l2 2M12 18l-2-2M12 18l2-2M6 9l.3 2.6M6 9l2.6-.4M18 9l-.3 2.6M18 9l-2.6-.4"/>',
+    svg: '<path d="M12 3v18M4.2 7.5L19.8 16.5M19.8 7.5L4.2 16.5"/><path d="M12 6.4l-1.9 1.1M12 6.4l1.9 1.1M12 17.6l-1.9-1.1M12 17.6l1.9-1.1M6 9.2l.2 2.2M6 9.2l2.1-.2M18 9.2l-.2 2.2M18 9.2l-2.1-.2"/>',
   },
   desert: {
     label: 'Barrens',

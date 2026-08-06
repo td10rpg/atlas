@@ -251,14 +251,22 @@ function buildHex(col, row) {
 
   const region = rec && rec.region ? REGIONS.find((r) => r.name === rec.region) : null;
   const stroke = region && region.name !== 'Unassigned' ? region.color : 'var(--hex-line)';
+  const isOcean = rec && rec.terrain === 'Ocean or Coast';
   const terrColor = rec && rec.terrain ? TERRAIN_COLOR[rec.terrain] : null;
-  const fill = terrColor || 'var(--hex-blank)';
-  const fillOp = terrColor ? '0.32' : '1';
+
+  // Naturalistic fills (backlog 8): open sea is a continuous teal expanse with no
+  // per-hex glyph; land terrain gets a small deterministic value jitter so a band
+  // of one terrain doesn't read as a flat block of colour.
+  let fill, fillOp;
+  if (isOcean) { fill = terrColor; fillOp = (0.5 + hexJitter(id) * 0.6).toFixed(3); }
+  else if (terrColor) { fill = terrColor; fillOp = (0.32 + hexJitter(id)).toFixed(3); }
+  else if (region && region.name !== 'Unassigned') { fill = region.color; fillOp = (0.13 + hexJitter(id) * 0.5).toFixed(3); } // unsurveyed land, tinted by region
+  else { fill = 'var(--hex-blank)'; fillOp = '1'; }
 
   const cls = 'hex' + (rec && rec.canon ? ' canon' : '');
   let inner = `<polygon points="${pts}" fill="${fill}" fill-opacity="${fillOp}" stroke="${stroke}"/>`;
 
-  if (rec && rec.icon) {
+  if (rec && rec.icon && !isOcean) {
     const gs = SIZE * 0.86;
     const gx = cx - gs / 2, gy = cy - gs / 2 - (rec.name ? 3 : 0);
     inner += `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
@@ -984,6 +992,12 @@ function escapeHtml(s) {
 }
 function escapeXml(s) { return escapeHtml(s); }
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+// A stable per-hex value in [-0.05, +0.05] from its id — for a natural fill jitter.
+function hexJitter(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return ((h % 100) / 100 - 0.5) * 0.10;
+}
 
 // ---- go ---------------------------------------------------------------------
 
