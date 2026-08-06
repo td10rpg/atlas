@@ -313,7 +313,10 @@ function buildHex(col, row) {
   // (imported / random / Unassigned) falls back to its terrain colour. A small
   // deterministic jitter keeps a zone from reading as one flat block of colour.
   let fill, fillOp;
-  if (isOcean) { fill = terrColor; fillOp = (0.5 + hexJitter(id) * 0.6).toFixed(3); }
+  // Ocean is a FLAT 0.5 (no jitter) so it composites to exactly --river — a river
+  // drawn over the sea is then invisible (seamless), and rivers use that same
+  // composited colour on land. Jitter here would leave a faint river ghost.
+  if (isOcean) { fill = terrColor; fillOp = '0.5'; }
   else if (region && region.name !== 'Unassigned') {
     const surveyed = !!(rec && rec.terrain);
     fill = surveyed ? darken(region.color, 0.34) : region.color;
