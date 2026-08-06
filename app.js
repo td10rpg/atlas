@@ -45,6 +45,7 @@ const TOOL_ICONS = {
   erase: '<path d="M4 15l7-7 7 7-4 4H8z"/><path d="M8 21h10"/>',
   marker: '<path d="M12 21s6-5.7 6-11a6 6 0 0 0-12 0c0 5.3 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',
   river: '<path d="M3 7c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/><path d="M3 15c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/>',
+  label: '<path d="M4 7h16M4 12h10M4 17h13"/>',
 };
 const WAG_LINES = [
   { key: 'weather', tag: 'Weather · Table A' },
@@ -204,6 +205,7 @@ function buildTools() {
     tool('terrain', 'Paint terrain — click to pick the brush') +
     tool('region', 'Paint region — click to pick the region') +
     tool('river', 'Draw a river — drag to trace; tap a river to remove it') +
+    tool('label', 'Label — click to place text; click a label to edit (clear it to delete)') +
     '<div class="sep"></div>' +
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
@@ -392,14 +394,82 @@ function renderMap() {
       base += p.base; top += p.top;
     }
   }
-  // Layers, bottom to top: hex fills + terrain, then rivers, then the grid
-  // outlines + numbers (so rivers read as geography under the map's grid), then
-  // the overlay (selection outline + markers + draw preview).
-  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="grid-layer">${top}</g><g id="overlay"></g>`;
+  // Layers, bottom to top: hex fills + terrain, rivers, the grid outlines +
+  // numbers, free labels, then the overlay (selection + markers + draw preview).
+  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="grid-layer">${top}</g><g id="label-layer"></g><g id="overlay"></g>`;
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
   drawRivers();
+  drawLabels();
   drawOverlay();
 }
+
+// ---- free labels (the label tool) -----------------------------------------
+// Text placed anywhere on the map, stored in board coordinates. The font scales
+// with zoom (labels stay anchored to the map) but its apparent size is clamped
+// so it never becomes illegibly small or absurdly large.
+const LABEL_WORLD = SIZE * 0.5;              // natural font size in board units
+const LABEL_MIN_PX = 11, LABEL_MAX_PX = 28;  // apparent-size clamp
+
+function labelFontBoardUnits() {
+  const rect = mapEl.getBoundingClientRect();
+  const boardPerPx = rect.width ? (S.view.w / rect.width) : 1;
+  return Math.min(Math.max(LABEL_WORLD, LABEL_MIN_PX * boardPerPx), LABEL_MAX_PX * boardPerPx);
+}
+/** Keep the label layer's apparent font size within the legible clamp for the
+ *  current zoom. Called on every view change (cheap: just two inherited styles). */
+function applyLabelScale() {
+  const layer = mapEl.querySelector('#label-layer');
+  if (!layer) return;
+  const fs = labelFontBoardUnits();
+  layer.style.fontSize = fs.toFixed(2) + 'px';
+  layer.style.strokeWidth = (fs * 0.16).toFixed(2) + 'px';  // halo scales with the text
+}
+function drawLabels() {
+  const layer = mapEl.querySelector('#label-layer');
+  if (!layer) return;
+  layer.innerHTML = (S.atlas.labels || []).map((l) =>
+    `<text class="map-label" x="${(+l.x).toFixed(1)}" y="${(+l.y).toFixed(1)}" text-anchor="middle" dominant-baseline="central">${escapeXml(l.text || '')}</text>`).join('');
+  applyLabelScale();
+}
+/** Index of the label nearest a board point within a tolerance, or -1. */
+function findLabelAt(bx, by) {
+  const labels = S.atlas.labels || [];
+  const tol = LABEL_WORLD * 2.2, tol2 = tol * tol;
+  let best = -1, bd = tol2;
+  labels.forEach((l, i) => { const d = (l.x - bx) ** 2 + (l.y - by) ** 2; if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+/** Open an inline text box to add a new label at a click, or edit the one there. */
+function openLabelEditor(clientX, clientY) {
+  closeLabelEditor();
+  const [bx, by] = clientToBoard(clientX, clientY);
+  const idx = findLabelAt(bx, by);
+  const existing = idx >= 0 ? S.atlas.labels[idx] : null;
+  const inp = document.createElement('input');
+  inp.id = 'label-input'; inp.className = 'label-input'; inp.type = 'text';
+  inp.value = existing ? existing.text : '';
+  inp.placeholder = 'Label…'; inp.setAttribute('spellcheck', 'false');
+  const wrap = mapWrap.getBoundingClientRect();
+  inp.style.left = (clientX - wrap.left) + 'px';
+  inp.style.top = (clientY - wrap.top) + 'px';
+  mapWrap.appendChild(inp);
+  inp.focus();
+  let done = false;
+  const commit = () => {
+    if (done) return; done = true;
+    const text = inp.value.trim();
+    if (existing) { if (text) existing.text = text; else S.atlas.labels.splice(idx, 1); }
+    else if (text) { (S.atlas.labels || (S.atlas.labels = [])).push({ x: bx, y: by, text }); }
+    closeLabelEditor();
+    if (text || existing) { persistConfig(); drawLabels(); recordChange(); }
+  };
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); done = true; closeLabelEditor(); }
+  });
+  inp.addEventListener('blur', commit);
+}
+function closeLabelEditor() { const el = $('#label-input'); if (el) el.remove(); }
 
 // ---- rivers (freehand → snapped to an invisible sub-hex lattice) -----------
 // The river follows the CELLS of a finer hex grid laid over the map: one sub-hex
@@ -654,6 +724,7 @@ function neighbourTerrainsOf(id) {
 function applyView() {
   const v = S.view;
   mapEl.setAttribute('viewBox', `${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}`);
+  applyLabelScale(); // keep label apparent size within the legible clamp as zoom changes
 }
 function fitView() {
   const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
@@ -696,8 +767,10 @@ function wirePointer() {
     try { mapEl.setPointerCapture(e.pointerId); } catch {}
     const hex = e.target.closest('.hex');
     const downId = hex ? hex.dataset.id : null;
-    // River traces freehand; other paint tools stamp on drag; Inspect pans.
-    const mode = S.tool === 'river' ? 'river' : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
+    // River traces freehand; Label click-places (drag pans); other paint tools
+    // stamp on drag; Inspect pans.
+    const mode = S.tool === 'river' ? 'river' : S.tool === 'label' ? 'label'
+      : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
     pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId };
     if (mode === 'paint') paintHex(downId, true);
     if (mode === 'river') pointer.raw = [clientToBoard(e.clientX, e.clientY)];
@@ -705,7 +778,7 @@ function wirePointer() {
   });
   mapEl.addEventListener('pointermove', (e) => {
     if (!pointer) return;
-    if (pointer.mode === 'pan') {
+    if (pointer.mode === 'pan' || pointer.mode === 'label') {
       pan(e.clientX - pointer.lx, e.clientY - pointer.ly);
     } else if (pointer.mode === 'river') {
       pointer.raw.push(clientToBoard(e.clientX, e.clientY));
@@ -725,6 +798,8 @@ function wirePointer() {
       clearRiverPreview();
       if (pointer.moved) addRiver(pointer.raw);
       else { const [bx, by] = clientToBoard(e.clientX, e.clientY); deleteRiverAt(bx, by); }
+    } else if (pointer.mode === 'label') {
+      if (!pointer.moved) openLabelEditor(e.clientX, e.clientY);
     } else if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) {
       setSelected(pointer.downId);
     }
@@ -847,7 +922,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], customTables: S.atlas.customTables || {} },
       hexes,
     }));
   } catch { /* quota or private mode — ignore */ }
@@ -879,6 +954,7 @@ function snapshot() {
     name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles,
     markers: clone(S.atlas.markers || []),
     rivers: clone(S.atlas.rivers || []),
+    labels: clone(S.atlas.labels || []),
     customTables: clone(S.atlas.customTables || {}),
     hexes: clone(S.atlas.hexes || {}),
   };
@@ -902,6 +978,7 @@ function applySnapshot(snap) {
   S.atlas.name = snap.name; S.atlas.cols = snap.cols; S.atlas.rows = snap.rows; S.atlas.hexMiles = snap.hexMiles;
   S.atlas.markers = clone(snap.markers);
   S.atlas.rivers = clone(snap.rivers || []);
+  S.atlas.labels = clone(snap.labels || []);
   S.atlas.customTables = clone(snap.customTables || {}); setTableOverrides(S.atlas.customTables);
   const newHexes = clone(snap.hexes);
   S.atlas.hexes = newHexes;
@@ -1371,7 +1448,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], customTables: S.atlas.customTables || {} }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1414,6 +1491,9 @@ function buildExportSVG() {
     const { x, y } = hexCenter(col, row, SIZE);
     return markerGlyph(m, x, y);
   }).join('');
+  const labels = (S.atlas.labels || []).map((l) =>
+    `<text class="map-label" x="${(+l.x).toFixed(1)}" y="${(+l.y).toFixed(1)}" text-anchor="middle" dominant-baseline="central">${escapeXml(l.text || '')}</text>`).join('');
+  const appBg = tok('--bg');
 
   const title = (S.atlas.name || '').trim();
   const titleH = title ? SIZE * 1.4 : SIZE * 0.4;
@@ -1432,15 +1512,16 @@ function buildExportSVG() {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     `<style>` +
-      `svg{--hex-line:${hexLine};--river:${river};--ink:${ink};--ink-dim:${inkDim};--accent:${accent};}` +
+      `svg{--hex-line:${hexLine};--river:${river};--ink:${ink};--ink-dim:${inkDim};--accent:${accent};--bg:${appBg};}` +
       `.hex-top polygon{fill:none;stroke:var(--hex-line);stroke-width:1;}` +
       `.hex-label{fill:var(--ink-dim);opacity:.6;font-size:8px;font-family:${sans};}` +
       `.hex-name{fill:var(--ink);font-size:8.5px;font-weight:600;font-family:${serif};}` +
       `.river{fill:none;stroke:var(--river);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;}` +
+      `.map-label{fill:var(--ink);stroke:var(--bg);paint-order:stroke;stroke-linejoin:round;stroke-width:${(LABEL_WORLD * 0.16).toFixed(2)}px;font-family:${serif};font-weight:600;font-size:${LABEL_WORLD.toFixed(1)}px;}` +
     `</style>` +
     `<rect width="${W}" height="${H}" fill="${bg}"/>` +
     titleEl +
-    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${top}${markers}</g>` +
+    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${top}${labels}${markers}</g>` +
     scaleBar +
   `</svg>`;
 }
