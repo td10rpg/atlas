@@ -285,19 +285,26 @@ function buildHex(col, row) {
   const cls = 'hex' + (rec && rec.canon ? ' canon' : '');
   let inner = `<polygon points="${pts}" fill="${fill}" fill-opacity="${fillOp}" stroke="${stroke}"/>`;
 
+  // The party marker (an overlay-layer pin) sits at the hex centre; when one is on
+  // this hex, drop the terrain glyph lower so the pin stacks above it rather than
+  // burying it.
+  const hasParty = (S.atlas.markers || []).some((m) => m && m.type === 'party' && m.hexId === id);
   if (rec && rec.icon && !isOcean) {
-    const gs = SIZE * 0.86;
-    const gx = cx - gs / 2, gy = cy - gs / 2 - (rec.name ? 3 : 0);
+    const gs = SIZE * 0.64;
+    const gx = cx - gs / 2;
+    const gy = cy - gs / 2 + (hasParty ? SIZE * 0.22 : 0) - (rec.name ? 3 : 0);
     inner += `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
       terrainGlyph(rec.icon, { size: gs }) + `</g>`;
   }
-  if (rec && hasSettlement(rec)) {
-    const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
-    inner += badge(cx + SIZE * 0.34, cy - SIZE * 0.5, 'settlement', '#d8b25a', n);
-  }
+  // Site and settlement badges sit symmetrically in the two upper corners, clear
+  // of the central glyph.
   if (rec && hasSite(rec)) {
     const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
-    inner += badge(cx - SIZE * 0.62, cy - SIZE * 0.5, 'site', '#c98a8a', n);
+    inner += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', '#c98a8a', n);
+  }
+  if (rec && hasSettlement(rec)) {
+    const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
+    inner += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', '#d8b25a', n);
   }
   if (rec && rec.canon) {
     inner += `<text class="canon-star" x="${cx}" y="${(cy + SIZE * 0.52).toFixed(1)}" text-anchor="middle" fill="var(--accent)" font-size="9">★</text>`;
@@ -312,7 +319,7 @@ function buildHex(col, row) {
 }
 
 function badge(x, y, kind, color, count) {
-  const s = SIZE * 0.42;
+  const s = SIZE * 0.36;
   const countMark = count > 1
     ? `<text x="${(s + 1).toFixed(1)}" y="${(s * 0.35).toFixed(1)}" text-anchor="middle" font-size="${(s * 0.62).toFixed(1)}" font-weight="700" fill="${color}" stroke="var(--map-bg)" stroke-width="0.6" paint-order="stroke">×${count}</text>`
     : '';
