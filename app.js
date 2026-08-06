@@ -184,6 +184,7 @@ function renderConn() {
     `<button class="btn small ghost" data-action="import-map" title="Import an image and convert it to native hexes">Map image</button>` +
     `<button class="btn small ghost" data-action="random" title="Generate a random terrain map (content stays blank)">Random map</button>` +
     `<button class="btn small ghost" data-action="theme" title="Theme: auto / light / dark">${THEME_LABEL[S.theme]}</button>` +
+    `<button class="btn small ghost" data-action="save-image" title="Save the map as a PNG or SVG image">Save image</button>` +
     `<button class="btn small ghost" data-action="export">Export</button>` +
     `<button class="btn small ghost" data-action="import">Import</button>`;
 }
@@ -1249,6 +1250,7 @@ function wireEvents() {
     if (a === 'import') importInput.click();
     if (a === 'random') randomMap();
     if (a === 'import-map') pickMapImage();
+    if (a === 'save-image') saveImage();
   });
 
   nameInput.addEventListener('input', () => {
@@ -1347,6 +1349,107 @@ function exportBundle() {
   a.download = (S.atlas.name || 'hinterlands-atlas').replace(/[^\w.-]+/g, '-') + '.json';
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---- map image export (PNG / SVG) -----------------------------------------
+// Renders the whole board (not the zoomed view) into a self-contained SVG — a
+// title and a scale bar baked in, CSS-variable colours resolved to concrete
+// values and the styles inlined — so the file stands alone as a usable map.
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** A standalone SVG string of the current atlas: title + map + scale bar. */
+function buildExportSVG() {
+  const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
+  const cs = getComputedStyle(document.documentElement);
+  const tok = (n) => cs.getPropertyValue(n).trim();
+  const bg = tok('--map-bg'), hexLine = tok('--hex-line'), river = tok('--river');
+  const ink = tok('--ink'), inkDim = tok('--ink-dim'), accent = tok('--accent');
+  const serif = "'EB Garamond', Georgia, 'Times New Roman', serif";
+  const sans = "system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
+
+  // Reuse the on-screen builders over the full board (labels follow S.showLabels).
+  let base = '', top = '';
+  for (let col = 0; col < S.atlas.cols; col++) {
+    for (let row = 0; row < S.atlas.rows; row++) { const p = buildHex(col, row); base += p.base; top += p.top; }
+  }
+  const rivers = (S.atlas.rivers || []).map((l) => { const d = smoothPath(l); return d ? `<path class="river" d="${d}"/>` : ''; }).join('');
+  const markers = (S.atlas.markers || []).map((m) => {
+    const { col, row } = parseId(m.hexId);
+    if (col < 0 || row < 0 || col >= S.atlas.cols || row >= S.atlas.rows) return '';
+    const { x, y } = hexCenter(col, row, SIZE);
+    return markerGlyph(m, x, y);
+  }).join('');
+
+  const title = (S.atlas.name || '').trim();
+  const titleH = title ? SIZE * 1.4 : SIZE * 0.4;
+  const scaleH = SIZE * 1.2;
+  const W = w, H = titleH + h + scaleH;
+
+  const titleEl = title
+    ? `<text x="${(W / 2).toFixed(1)}" y="${(titleH * 0.66).toFixed(1)}" text-anchor="middle" font-family="${serif}" font-size="${(SIZE * 0.7).toFixed(1)}" font-weight="600" fill="${ink}">${escapeXml(title)}</text>`
+    : '';
+
+  const bx = SIZE, by = titleH + h + SIZE * 0.55, barLen = SIZE * 2;
+  const area = Math.round(0.8660254 * S.atlas.hexMiles * S.atlas.hexMiles);
+  const scaleBar =
+    `<path d="M${bx} ${(by - 4).toFixed(1)}V${(by + 4).toFixed(1)}M${bx} ${by}H${bx + barLen}M${bx + barLen} ${(by - 4).toFixed(1)}V${(by + 4).toFixed(1)}" stroke="${ink}" stroke-width="1.4" fill="none"/>` +
+    `<text x="${bx + barLen + 8}" y="${(by + 4).toFixed(1)}" font-family="${sans}" font-size="11" fill="${ink}">1 hex = ${S.atlas.hexMiles} mi (≈ ${area} sq mi)</text>`;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+    `<style>` +
+      `svg{--hex-line:${hexLine};--river:${river};--ink:${ink};--ink-dim:${inkDim};--accent:${accent};}` +
+      `.hex-top polygon{fill:none;stroke:var(--hex-line);stroke-width:1;}` +
+      `.hex-label{fill:var(--ink-dim);opacity:.6;font-size:8px;font-family:${sans};}` +
+      `.hex-name{fill:var(--ink);font-size:8.5px;font-weight:600;font-family:${serif};}` +
+      `.river{fill:none;stroke:var(--river);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;}` +
+    `</style>` +
+    `<rect width="${W}" height="${H}" fill="${bg}"/>` +
+    titleEl +
+    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${top}${markers}</g>` +
+    scaleBar +
+  `</svg>`;
+}
+
+function exportImage(format) {
+  const svg = buildExportSVG();
+  const name = ((S.atlas.name || 'atlas').replace(/[^\w.-]+/g, '-') || 'atlas');
+  if (format === 'svg') {
+    downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), name + '.svg');
+    toast('Saved SVG.');
+    return;
+  }
+  // PNG: rasterise the SVG (via a blob URL, at 2× for crispness) onto a canvas.
+  const m = svg.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/);
+  const W = +m[1], H = +m[2], scale = 2;
+  const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = Math.round(W * scale); c.height = Math.round(H * scale);
+    const ctx = c.getContext('2d'); ctx.scale(scale, scale); ctx.drawImage(img, 0, 0);
+    URL.revokeObjectURL(url);
+    c.toBlob((blob) => {
+      if (blob) { downloadBlob(blob, name + '.png'); toast('Saved PNG.'); }
+      else toast('PNG export failed', true);
+    }, 'image/png');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); toast('Could not render the map image', true); };
+  img.src = url;
+}
+
+async function saveImage() {
+  const fmt = await confirmModal({
+    title: 'Save map image',
+    body: 'PNG is a ready-to-share picture; SVG is a crisp vector you can scale or edit. Both include the atlas title and a scale bar.',
+    choices: [{ value: 'png', label: 'PNG', primary: true }, { value: 'svg', label: 'SVG' }],
+  });
+  if (fmt) exportImage(fmt);
 }
 function onImportFile(e) {
   const file = e.target.files && e.target.files[0];
