@@ -426,18 +426,58 @@ function riverFromRaw(raw) {
   return out;
 }
 
-/** A smooth Catmull-Rom path (as SVG "d") through the given points. */
-function smoothPath(p) {
-  if (!p || p.length < 2) return '';
-  const f = (n) => n.toFixed(1);
-  if (p.length === 2) return `M${f(p[0][0])},${f(p[0][1])} L${f(p[1][0])},${f(p[1][1])}`;
-  let d = `M${f(p[0][0])},${f(p[0][1])}`;
-  for (let i = 0; i < p.length - 1; i++) {
-    const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
-    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
-    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
-    d += ` C${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(p2[0])},${f(p2[1])}`;
+/** Squared distance from point p to segment a–b. */
+function sqSegDist(p, a, b) {
+  let x = a[0], y = a[1], dx = b[0] - x, dy = b[1] - y;
+  if (dx || dy) {
+    const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
+    if (t > 1) { x = b[0]; y = b[1]; } else if (t > 0) { x += dx * t; y += dy * t; }
   }
+  dx = p[0] - x; dy = p[1] - y;
+  return dx * dx + dy * dy;
+}
+/** Ramer–Douglas–Peucker: drop points that stay within `eps` of the kept line.
+ *  Collapses the sub-hex staircase (and hand-wobble jitter) into clean anchors. */
+function simplify(pts, eps) {
+  if (pts.length < 3) return pts.slice();
+  const eps2 = eps * eps;
+  const keep = new Array(pts.length).fill(false);
+  keep[0] = keep[pts.length - 1] = true;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length) {
+    const [s, e] = stack.pop();
+    let idx = -1, md = eps2;
+    for (let i = s + 1; i < e; i++) { const d = sqSegDist(pts[i], pts[s], pts[e]); if (d > md) { md = d; idx = i; } }
+    if (idx >= 0) { keep[idx] = true; stack.push([s, idx], [idx, e]); }
+  }
+  return pts.filter((_, i) => keep[i]);
+}
+/** Chaikin corner-cutting: smooths a polyline toward a curve without passing
+ *  through the points, so residual sub-hex sawtooth is averaged away. Endpoints
+ *  are preserved; a straight run stays straight. */
+function chaikin(pts, iters) {
+  let p = pts;
+  for (let k = 0; k < iters && p.length >= 3; k++) {
+    const out = [p[0]];
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = p[i], b = p[i + 1];
+      out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+      out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+    }
+    out.push(p[p.length - 1]);
+    p = out;
+  }
+  return p;
+}
+/** Build the river's SVG "d": simplify (kill the staircase), then Chaikin-smooth. */
+function smoothPath(raw) {
+  if (!raw || raw.length < 2) return '';
+  const f = (n) => n.toFixed(1);
+  let p = raw.length > 2 ? simplify(raw, subHexR()) : raw;
+  if (p.length === 2) return `M${f(p[0][0])},${f(p[0][1])} L${f(p[1][0])},${f(p[1][1])}`;
+  p = chaikin(p, 4);
+  let d = `M${f(p[0][0])},${f(p[0][1])}`;
+  for (let i = 1; i < p.length; i++) d += ` L${f(p[i][0])},${f(p[i][1])}`;
   return d;
 }
 
