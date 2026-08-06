@@ -62,7 +62,9 @@ const S = {
   brushRegion: 'The Pine Expanse',
   showLabels: true,
   notesTab: 'write',
-  riverDraft: null,     // ids of the river currently being traced, or null
+  riverDraft: null,     // { w, pts:[{x,y}…] } while tracing, else null
+  riverHover: null,     // snapped rubber-band point under the cursor while tracing
+  riverWidth: 2,        // current river width (1 Stream / 2 River / 3 Major)
   theme: 'auto',        // 'auto' | 'light' | 'dark' (backlog 14)
   view: { x: 0, y: 0, w: 100, h: 100 },
 };
@@ -230,9 +232,11 @@ function renderHud() {
       REGIONS.map((r) => `<option ${r.name === S.brushRegion ? 'selected' : ''}>${r.name}</option>`).join('') +
       `</select>`;
   } else if (S.tool === 'river') {
-    brush = `<span class="sep2">|</span> ` + (S.riverDraft
-      ? `Tracing river (${S.riverDraft.length}) — click on to extend, click the end or press Esc to finish`
-      : `River — click hexes to trace; click a river to remove it`);
+    const wbtn = (n, label) => `<button class="btn small ${S.riverWidth === n ? 'primary' : ''}" data-hud="rw-${n}" title="${label}">${'▍▐█'[n - 1] || ''}</button>`;
+    brush = `<span class="sep2">|</span> Width ${wbtn(1, 'Stream')}${wbtn(2, 'River')}${wbtn(3, 'Major')}` +
+      `<span class="sep2">|</span> ` + (S.riverDraft
+        ? `Tracing (${S.riverDraft.pts.length}) — click to extend · click the last point or Esc to finish`
+        : `Click to trace a river · click a river to remove it`);
   }
   hudEl.innerHTML =
     `<button class="btn small" data-action="zoom-out" title="Zoom out">−</button>` +
@@ -332,33 +336,73 @@ function renderMap() {
   drawOverlay();
 }
 
-// Rivers run between hexes as a smooth line through the centers of their path
-// (the river tool). Committed rivers live in atlas.rivers; the in-progress draft
-// is drawn dashed until finished.
+// Rivers snap to the hex lattice — the corners and edge midpoints of the grid —
+// so they hug the geometry, then a Catmull-Rom curve makes them a semi-smooth
+// waterway. Three widths (Stream / River / Major). Each river is { w, pts:[[x,y]…] }
+// in board coordinates. Committed rivers live in atlas.rivers; the draft (plus a
+// rubber-band to the hovered snap point) draws until finished.
+const RIVER_W = [0, 0.09, 0.15, 0.24]; // stroke width by width index, × SIZE
+
 function drawRivers() {
   const g = mapEl.querySelector('#rivers');
   if (!g) return;
   let s = '';
-  (S.atlas.rivers || []).forEach((r) => { s += riverPath(r, false); });
-  if (S.riverDraft) s += riverPath(S.riverDraft, true);
+  (S.atlas.rivers || []).forEach((r) => { s += riverSvg(r.pts.map((p) => ({ x: p[0], y: p[1] })), r.w, false); });
+  if (S.riverDraft) {
+    const pts = S.riverDraft.pts.slice();
+    if (S.riverHover) pts.push(S.riverHover);
+    s += riverSvg(pts, S.riverDraft.w, true);
+    S.riverDraft.pts.forEach((p) => { s += `<circle class="river-node" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(SIZE * 0.07).toFixed(1)}"/>`; });
+  }
   g.innerHTML = s;
 }
-function riverPath(ids, draft) {
-  const pts = (ids || []).map((id) => { const { col, row } = parseId(id); return hexCenter(col, row, SIZE); });
+function riverSvg(pts, w, draft) {
   if (!pts.length) return '';
-  const cls = 'river' + (draft ? ' draft' : '');
-  if (pts.length === 1) {
-    const p = pts[0];
-    return `<circle class="river-dot${draft ? ' draft' : ''}" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(SIZE * 0.12).toFixed(1)}"/>`;
-  }
+  const sw = (RIVER_W[w] * SIZE).toFixed(2);
+  if (pts.length === 1) return `<circle class="river-node${draft ? ' draft' : ''}" cx="${pts[0].x.toFixed(1)}" cy="${pts[0].y.toFixed(1)}" r="${(SIZE * 0.07).toFixed(1)}"/>`;
+  return `<path class="river${draft ? ' draft' : ''}" d="${smoothPath(pts)}" style="stroke-width:${sw}"/>`;
+}
+// A Catmull-Rom spline through the points, emitted as cubic béziers (tension 1/6).
+function smoothPath(pts) {
+  if (pts.length === 2) return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} L ${pts[1].x.toFixed(1)} ${pts[1].y.toFixed(1)}`;
   let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const mx = (pts[i].x + pts[i + 1].x) / 2, my = (pts[i].y + pts[i + 1].y) / 2;
-    d += ` Q ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
   }
-  const last = pts[pts.length - 1];
-  d += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
-  return `<path class="${cls}" d="${d}" style="stroke-width:${(SIZE * 0.16).toFixed(2)}"/>`;
+  return d;
+}
+
+// ---- the hex lattice (snap targets: corners + edge midpoints) --------------
+let _lattice = null, _latticeKey = '';
+function lattice() {
+  const key = `${S.atlas.cols}x${S.atlas.rows}`;
+  if (_lattice && _latticeKey === key) return _lattice;
+  const seen = new Set(), pts = [];
+  const add = (x, y) => { const k = `${Math.round(x)}|${Math.round(y)}`; if (!seen.has(k)) { seen.add(k); pts.push({ x, y }); } };
+  for (let col = 0; col < S.atlas.cols; col++) {
+    for (let row = 0; row < S.atlas.rows; row++) {
+      const { x: cx, y: cy } = hexCenter(col, row, SIZE);
+      const corners = [];
+      for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i); corners.push({ x: cx + SIZE * Math.cos(a), y: cy + SIZE * Math.sin(a) }); }
+      corners.forEach((c, i) => { add(c.x, c.y); const n = corners[(i + 1) % 6]; add((c.x + n.x) / 2, (c.y + n.y) / 2); }); // corners + edge midpoints
+    }
+  }
+  _lattice = pts; _latticeKey = key;
+  return pts;
+}
+function nearestLattice(pt) {
+  let best = pt, bd = Infinity;
+  for (const p of lattice()) { const d = (p.x - pt.x) ** 2 + (p.y - pt.y) ** 2; if (d < bd) { bd = d; best = p; } }
+  return { x: best.x, y: best.y };
+}
+/** Client pixel → board coordinate, via the current viewBox. */
+function clientToBoard(clientX, clientY) {
+  const rect = mapEl.getBoundingClientRect();
+  const fx = (clientX - rect.left) / rect.width, fy = (clientY - rect.top) / rect.height;
+  return { x: S.view.x + fx * S.view.w, y: S.view.y + fy * S.view.h };
 }
 
 function refreshHex(id) {
@@ -472,9 +516,9 @@ function wirePointer() {
   });
   const end = (e) => {
     if (!pointer) return;
-    if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) {
-      if (S.tool === 'river') riverClick(pointer.downId);
-      else setSelected(pointer.downId);
+    if (pointer.mode === 'pan' && !pointer.moved) {
+      if (S.tool === 'river') riverClickAt(clientToBoard(pointer.lx, pointer.ly));
+      else if (pointer.downId) setSelected(pointer.downId);
     }
     mapEl.classList.remove('grabbing');
     try { mapEl.releasePointerCapture(e.pointerId); } catch {}
@@ -482,6 +526,15 @@ function wirePointer() {
   };
   mapEl.addEventListener('pointerup', end);
   mapEl.addEventListener('pointercancel', end);
+
+  // River rubber-band: while tracing (and not panning), track the hovered snap
+  // point so the next segment previews under the cursor.
+  mapEl.addEventListener('pointermove', (e) => {
+    if (S.tool !== 'river' || !S.riverDraft) return;
+    if (pointer && pointer.moved) return;
+    S.riverHover = nearestLattice(clientToBoard(e.clientX, e.clientY));
+    drawRivers();
+  });
 
   mapEl.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -544,32 +597,59 @@ function toggleParty(id) {
   recordChange();
 }
 
-// The river tool: click hexes to trace a river through them. While a draft is
-// open, clicking the last point finishes it and clicking the previous point undoes
-// a step; when idle, clicking any hex on an existing river removes that river, and
-// clicking elsewhere starts a new one. Rivers live at the atlas level (atlas.json).
-function riverClick(id) {
+// The river tool: click to drop a point (snapped to the nearest lattice dot). A
+// live rubber-band shows the next segment. While drafting, clicking the last point
+// (or Esc, or switching tools) finishes it, and clicking the previous point undoes
+// a step. When idle, clicking on an existing river removes it. Rivers live at the
+// atlas level (atlas.json).
+const RIVER_SNAP2 = (SIZE * 0.45) ** 2; // "same point" / hit tolerance, squared
+function riverClickAt(boardPt) {
+  const snap = nearestLattice(boardPt);
   if (S.riverDraft) {
-    const d = S.riverDraft;
-    if (d[d.length - 1] === id) { finishRiver(); return; }             // click end → finish
-    if (d.length >= 2 && d[d.length - 2] === id) { d.pop(); drawRivers(); return; } // click prev → undo
-    d.push(id); drawRivers(); renderHud();
+    const pts = S.riverDraft.pts;
+    const last = pts[pts.length - 1];
+    if (last && (last.x - snap.x) ** 2 + (last.y - snap.y) ** 2 < 1) { finishRiver(); return; } // click the end → finish
+    const prev = pts[pts.length - 2];
+    if (prev && (prev.x - snap.x) ** 2 + (prev.y - snap.y) ** 2 < 1) { pts.pop(); drawRivers(); renderHud(); return; } // click prev → undo
+    pts.push(snap); drawRivers(); renderHud();
     return;
   }
-  const ri = (S.atlas.rivers || []).findIndex((r) => r.includes(id));
+  const ri = riverHitIndex(boardPt);
   if (ri >= 0) { S.atlas.rivers.splice(ri, 1); persistConfig(); drawRivers(); recordChange(); toast('River removed.'); return; }
-  S.riverDraft = [id]; drawRivers(); renderHud();
+  S.riverDraft = { w: S.riverWidth, pts: [snap] };
+  S.riverHover = null;
+  drawRivers(); renderHud();
 }
 function finishRiver() {
-  if (S.riverDraft && S.riverDraft.length >= 2) {
-    (S.atlas.rivers || (S.atlas.rivers = [])).push(S.riverDraft.slice());
+  if (S.riverDraft && S.riverDraft.pts.length >= 2) {
+    (S.atlas.rivers || (S.atlas.rivers = [])).push({ w: S.riverDraft.w, pts: S.riverDraft.pts.map((p) => [+p.x.toFixed(1), +p.y.toFixed(1)]) });
     persistConfig();
     recordChange();
     toast('River added.');
   }
   S.riverDraft = null;
+  S.riverHover = null;
   drawRivers();
   renderHud();
+}
+/** Index of the first river within tolerance of a board point, or -1. */
+function riverHitIndex(pt) {
+  const rivers = S.atlas.rivers || [];
+  for (let i = 0; i < rivers.length; i++) {
+    const p = rivers[i].pts;
+    for (let j = 0; j < p.length - 1; j++) {
+      if (segDist2(pt, { x: p[j][0], y: p[j][1] }, { x: p[j + 1][0], y: p[j + 1][1] }) < RIVER_SNAP2) return i;
+    }
+  }
+  return -1;
+}
+function segDist2(p, a, b) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy || 1;
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const cx = a.x + t * dx, cy = a.y + t * dy;
+  return (p.x - cx) ** 2 + (p.y - cy) ** 2;
 }
 
 /** Ensure the hex, mutate it, then persist + repaint + refresh the inspector. */
@@ -961,6 +1041,13 @@ function wireEvents() {
   });
 
   hudEl.addEventListener('click', (e) => {
+    const rw = e.target.closest('[data-hud^="rw-"]');
+    if (rw) {
+      S.riverWidth = +rw.dataset.hud.slice(3);
+      if (S.riverDraft) S.riverDraft.w = S.riverWidth;
+      renderHud(); drawRivers();
+      return;
+    }
     const b = e.target.closest('[data-action]');
     if (!b) return;
     const rect = mapEl.getBoundingClientRect();

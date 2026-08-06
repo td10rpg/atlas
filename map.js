@@ -37,11 +37,17 @@ export function normalizeMarkers(raw) {
     .map((m) => ({ type: String(m.type), hexId: String(m.hexId), label: typeof m.label === 'string' ? m.label : '' }));
 }
 
-/** Coerce raw rivers into clean id-path arrays (each a list of hex ids). */
+/** Coerce raw rivers into clean records: { w: 1|2|3, pts: [[x,y], …] } in board
+ *  coordinates, snapped to the hex lattice by the river tool. */
 export function normalizeRivers(raw) {
   return (Array.isArray(raw) ? raw : [])
-    .map((r) => (Array.isArray(r) ? r.filter((id) => typeof id === 'string' && /^\d{4}$/.test(id)) : []))
-    .filter((r) => r.length >= 2);
+    .map((r) => {
+      if (!r || !Array.isArray(r.pts)) return null;
+      const pts = r.pts.filter((p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+      if (pts.length < 2) return null;
+      return { w: [1, 2, 3].includes(r.w) ? r.w : 2, pts };
+    })
+    .filter(Boolean);
 }
 
 export function getHex(atlas, id) {
