@@ -209,6 +209,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
   transition: width .2s; animation: busy-pulse 1.1s ease-in-out infinite; }
 @keyframes busy-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
 .hex-top polygon { fill: none; stroke: var(--hex-line); stroke-width: 1; }  /* the grid outline, over rivers */
+#map.no-grid .hex-top polygon { stroke: none; }  /* hexes-off: colours join, no separation */
 .sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .marquee { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 .hex-top .hex-label { fill: var(--ink-dim); opacity: .6; font-size: 8px; font-family: var(--sans); }

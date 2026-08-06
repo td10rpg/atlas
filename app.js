@@ -67,6 +67,7 @@ const S = {
   brushTerrain: 'Forest or Jungle',
   brushRegion: 'The Pine Expanse',
   showLabels: true,
+  showGrid: true,       // hex outlines on/off (off = colours join as continuous zones)
   notesTab: 'write',
   theme: 'auto',        // 'auto' | 'light' | 'dark' (backlog 14)
   view: { x: 0, y: 0, w: 100, h: 100 },
@@ -372,6 +373,7 @@ function renderHud() {
     `<button class="btn small" data-action="redo" title="Redo (Ctrl/Cmd-Shift-Z)" ${future.length ? '' : 'disabled'}>↷</button>` +
     `<span class="sep2">|</span>` +
     `<label><input type="checkbox" data-hud="labels" ${S.showLabels ? 'checked' : ''}/> labels</label>` +
+    `<label title="Hex outlines on/off"><input type="checkbox" data-hud="grid" ${S.showGrid ? 'checked' : ''}/> grid</label>` +
     `<span class="sep2">|</span> Map ` +
     `<input type="number" data-hud="cols" min="1" max="60" value="${S.atlas.cols}" style="width:46px" title="columns"/>×` +
     `<input type="number" data-hud="rows" min="1" max="60" value="${S.atlas.rows}" style="width:46px" title="rows"/>` +
@@ -498,6 +500,7 @@ function renderMap() {
   // numbers, the stamps (over every line), free labels, then the overlay
   // (selection + markers + draw preview).
   mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="grid-layer">${top}</g><g id="stamp-layer">${stamps}</g><g id="label-layer"></g><g id="overlay"></g>`;
+  mapEl.classList.toggle('no-grid', !S.showGrid);
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
   drawRivers();
   drawLabels();
@@ -1589,6 +1592,7 @@ function wireEvents() {
   hudEl.addEventListener('change', (e) => {
     const el = e.target;
     if (el.dataset.hud === 'labels') { S.showLabels = el.checked; renderMap(); applyView(); }
+    if (el.dataset.hud === 'grid') { S.showGrid = el.checked; mapEl.classList.toggle('no-grid', !S.showGrid); }
     if (el.dataset.hud === 'cols' || el.dataset.hud === 'rows') {
       const v = Math.max(1, Math.min(60, Math.round(Number(el.value)) || 1));
       S.atlas[el.dataset.hud] = v;
@@ -1800,7 +1804,7 @@ function buildExportSVG() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     `<style>` +
       `svg{--hex-line:${hexLine};--river:${river};--ink:${ink};--ink-dim:${inkDim};--accent:${accent};--bg:${appBg};}` +
-      `.hex-top polygon{fill:none;stroke:var(--hex-line);stroke-width:1;}` +
+      `.hex-top polygon{fill:none;stroke:${S.showGrid ? 'var(--hex-line)' : 'none'};stroke-width:1;}` +
       `.hex-label{fill:var(--ink-dim);opacity:.6;font-size:8px;font-family:${sans};}` +
       `.hex-name{fill:var(--ink);font-size:8.5px;font-weight:600;font-family:${serif};}` +
       `.river{fill:none;stroke:var(--river);stroke-width:5;stroke-linecap:round;stroke-linejoin:round;}` +
