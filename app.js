@@ -267,13 +267,18 @@ function buildHex(col, row) {
   // Naturalistic fills (backlog 8): open sea is a continuous teal expanse with no
   // per-hex glyph. On land the REGION owns the fill colour — a hex keeps its region
   // tint whether or not it's been surveyed, so the five regions always read as zones;
-  // terrain is carried by the glyph, not by recolouring the hex. Land with no region
-  // (imported / random / Unassigned) falls back to its terrain colour. A small
-  // deterministic jitter keeps a zone from reading as one flat block of colour.
+  // terrain is carried by the glyph, not by recolouring the hex. A *surveyed* hex is
+  // marked with the SAME region hue in a slightly darker shade (plus a touch more
+  // opacity), so explored country reads a shade deeper than the unsurveyed frontier
+  // around it. Land with no region (imported / random / Unassigned) falls back to its
+  // terrain colour. A small deterministic jitter keeps a zone from reading as flat.
   let fill, fillOp;
   if (isOcean) { fill = terrColor; fillOp = (0.5 + hexJitter(id) * 0.6).toFixed(3); }
-  else if (region && region.name !== 'Unassigned') { fill = region.color; fillOp = ((rec && rec.terrain ? 0.22 : 0.15) + hexJitter(id) * 0.5).toFixed(3); } // land keeps its region colour; a touch stronger once surveyed
-  else if (terrColor) { fill = terrColor; fillOp = (0.32 + hexJitter(id)).toFixed(3); }
+  else if (region && region.name !== 'Unassigned') {
+    const surveyed = !!(rec && rec.terrain);
+    fill = surveyed ? darken(region.color, 0.30) : region.color;
+    fillOp = ((surveyed ? 0.30 : 0.15) + hexJitter(id) * 0.5).toFixed(3);
+  } else if (terrColor) { fill = terrColor; fillOp = (0.32 + hexJitter(id)).toFixed(3); }
   else { fill = 'var(--hex-blank)'; fillOp = '1'; }
 
   const cls = 'hex' + (rec && rec.canon ? ' canon' : '');
@@ -1282,6 +1287,15 @@ function escapeHtml(s) {
 }
 function escapeXml(s) { return escapeHtml(s); }
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+// Darken a #rrggbb colour by blending each channel toward black by `amt` (0–1),
+// keeping the same hue — used to mark a surveyed hex a shade deeper than its region.
+function darken(hex, amt) {
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return hex;
+  const n = parseInt(m[1], 16), k = 1 - amt;
+  const r = Math.round(((n >> 16) & 255) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k);
+  return `rgb(${r},${g},${b})`;
+}
 // A stable per-hex value in [-0.05, +0.05] from its id — for a natural fill jitter.
 function hexJitter(id) {
   let h = 0;
