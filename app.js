@@ -514,8 +514,8 @@ function applyLabelScale() {
 function drawLabels() {
   const layer = mapEl.querySelector('#label-layer');
   if (!layer) return;
-  layer.innerHTML = (S.atlas.labels || []).map((l) =>
-    `<text class="map-label" x="${(+l.x).toFixed(1)}" y="${(+l.y).toFixed(1)}" text-anchor="middle" dominant-baseline="central">${escapeXml(l.text || '')}</text>`).join('');
+  layer.innerHTML = (S.atlas.labels || []).map((l, i) => (i === editingLabel ? '' :
+    `<text class="map-label" x="${(+l.x).toFixed(1)}" y="${(+l.y).toFixed(1)}" text-anchor="middle" dominant-baseline="central">${escapeXml(l.text || '')}</text>`)).join('');
   applyLabelScale();
 }
 /** Index of the label nearest a board point within a tolerance, or -1. */
@@ -526,35 +526,54 @@ function findLabelAt(bx, by) {
   labels.forEach((l, i) => { const d = (l.x - bx) ** 2 + (l.y - by) ** 2; if (d < bd) { bd = d; best = i; } });
   return best;
 }
-/** Open an inline text box to add a new label at a click, or edit the one there. */
+// Which label (index) is being edited — hidden from the SVG so the inline input
+// sits exactly in its place; -1 when not editing.
+let editingLabel = -1;
+/** Edit a label in place (transparent field over the label), or place a new one. */
 function openLabelEditor(clientX, clientY) {
   closeLabelEditor();
   const [bx, by] = clientToBoard(clientX, clientY);
   const idx = findLabelAt(bx, by);
   const existing = idx >= 0 ? S.atlas.labels[idx] : null;
+  editingLabel = idx;
+  if (existing) drawLabels(); // hide the one being edited
+
+  // Anchor the field at the label's on-screen centre (new labels: the click), and
+  // match the label's apparent font size, so it reads as editing in place.
+  const rect = mapEl.getBoundingClientRect();
+  const wrap = mapWrap.getBoundingClientRect();
+  const boardPerPx = rect.width ? (S.view.w / rect.width) : 1;
+  const sx = existing ? rect.left + (existing.x - S.view.x) / S.view.w * rect.width : clientX;
+  const sy = existing ? rect.top + (existing.y - S.view.y) / S.view.h * rect.height : clientY;
+
   const inp = document.createElement('input');
   inp.id = 'label-input'; inp.className = 'label-input'; inp.type = 'text';
   inp.value = existing ? existing.text : '';
   inp.placeholder = 'Label…'; inp.setAttribute('spellcheck', 'false');
-  const wrap = mapWrap.getBoundingClientRect();
-  inp.style.left = (clientX - wrap.left) + 'px';
-  inp.style.top = (clientY - wrap.top) + 'px';
+  inp.style.left = (sx - wrap.left) + 'px';
+  inp.style.top = (sy - wrap.top) + 'px';
+  inp.style.fontSize = Math.max(12, labelFontBoardUnits() / boardPerPx).toFixed(1) + 'px';
+  const grow = () => { inp.size = Math.max(5, inp.value.length + 1); };
+  grow();
   mapWrap.appendChild(inp);
-  inp.focus();
+  inp.focus(); inp.select();
   let done = false;
-  const commit = () => {
+  const finish = (save) => {
     if (done) return; done = true;
-    const text = inp.value.trim();
-    if (existing) { if (text) existing.text = text; else S.atlas.labels.splice(idx, 1); }
-    else if (text) { (S.atlas.labels || (S.atlas.labels = [])).push({ x: bx, y: by, text }); }
-    closeLabelEditor();
-    if (text || existing) { persistConfig(); drawLabels(); recordChange(); }
+    const at = editingLabel; editingLabel = -1;
+    if (save) {
+      const text = inp.value.trim();
+      if (existing) { if (text) existing.text = text; else S.atlas.labels.splice(at, 1); }
+      else if (text) (S.atlas.labels || (S.atlas.labels = [])).push({ x: bx, y: by, text });
+      closeLabelEditor(); persistConfig(); drawLabels(); recordChange();
+    } else { closeLabelEditor(); drawLabels(); }
   };
+  inp.addEventListener('input', grow);
   inp.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    else if (e.key === 'Escape') { e.preventDefault(); done = true; closeLabelEditor(); }
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
   });
-  inp.addEventListener('blur', commit);
+  inp.addEventListener('blur', () => finish(true));
 }
 function closeLabelEditor() { const el = $('#label-input'); if (el) el.remove(); }
 

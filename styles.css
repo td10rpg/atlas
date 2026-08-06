@@ -179,11 +179,15 @@ input, select, textarea { font-family: inherit; color: inherit; }
    terrain. Font size / stroke width are set on #label-layer per zoom (clamped). */
 .map-label { fill: var(--ink); stroke: var(--bg); paint-order: stroke; stroke-linejoin: round;
   font-family: var(--serif); font-weight: 600; }
+/* Inline label editor: a transparent field sitting exactly over the label at its
+   own size, with just a dashed accent underline so it reads as editing in place. */
 .label-input { position: absolute; z-index: 60; transform: translate(-50%, -50%);
-  min-width: 90px; background: var(--panel); color: var(--ink); border: 1px solid var(--accent);
-  border-radius: 5px; padding: 4px 8px; font-family: var(--serif); font-size: 14px;
-  box-shadow: var(--shadow); }
-.label-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  background: color-mix(in srgb, var(--bg) 62%, transparent); color: var(--ink);
+  border: none; border-bottom: 1.5px dashed var(--accent); border-radius: 0;
+  padding: 0 2px; text-align: center; font-family: var(--serif); font-weight: 600;
+  line-height: 1.25; box-shadow: none; caret-color: var(--accent); }
+.label-input:focus { outline: none; }
+.label-input::placeholder { color: var(--ink-dim); font-weight: 400; }
 /* measure tool */
 .measure-line { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 5 4; vector-effect: non-scaling-stroke; }
 .measure-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 1.5; }
