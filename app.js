@@ -323,7 +323,12 @@ function buildHex(col, row) {
   else { fill = 'var(--hex-blank)'; fillOp = '1'; }
 
   const cls = 'hex' + (rec && rec.canon ? ' canon' : '');
-  let inner = `<polygon points="${pts}" fill="${fill}" fill-opacity="${fillOp}" stroke="${stroke}"/>`;
+
+  // The hex renders in two pieces on separate layers so rivers can sit between
+  // them: BASE (the terrain fill + glyph + badges — also the click target) at the
+  // bottom, and TOP (the grid outline + numbers) above the river layer, so the
+  // grid and labels read over the water like a printed map.
+  let base = `<polygon points="${pts}" fill="${fill}" fill-opacity="${fillOp}"/>`;
 
   // The party marker (an overlay-layer pin) sits at the hex centre; when one is on
   // this hex, drop the terrain glyph lower so the pin stacks above it rather than
@@ -333,29 +338,34 @@ function buildHex(col, row) {
     const gs = SIZE * 0.64;
     const gx = cx - gs / 2;
     const gy = cy - gs / 2 + (hasParty ? SIZE * 0.22 : 0) - (rec.name ? 3 : 0);
-    inner += `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
+    base += `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
       terrainGlyph(rec.icon, { size: gs }) + `</g>`;
   }
   // Site and settlement badges sit symmetrically in the two upper corners, clear
   // of the central glyph.
   if (rec && hasSite(rec)) {
     const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
-    inner += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', '#c98a8a', n);
+    base += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', '#c98a8a', n);
   }
   if (rec && hasSettlement(rec)) {
     const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
-    inner += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', '#d8b25a', n);
+    base += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', '#d8b25a', n);
   }
+
+  let top = `<polygon points="${pts}" fill="none" stroke="${stroke}"/>`;
   if (rec && rec.canon) {
-    inner += `<text class="canon-star" x="${cx}" y="${(cy + SIZE * 0.52).toFixed(1)}" text-anchor="middle" fill="var(--accent)" font-size="9">★</text>`;
+    top += `<text class="canon-star" x="${cx}" y="${(cy + SIZE * 0.52).toFixed(1)}" text-anchor="middle" fill="var(--accent)" font-size="9">★</text>`;
   }
   if (S.showLabels) {
-    inner += `<text class="hex-label" x="${cx}" y="${(cy - SIZE * 0.58).toFixed(1)}" text-anchor="middle">${id}</text>`;
+    top += `<text class="hex-label" x="${cx}" y="${(cy - SIZE * 0.58).toFixed(1)}" text-anchor="middle">${id}</text>`;
     if (rec && rec.name) {
-      inner += `<text class="hex-name" x="${cx}" y="${(cy + SIZE * 0.78).toFixed(1)}" text-anchor="middle">${escapeXml(clip(rec.name, 14))}</text>`;
+      top += `<text class="hex-name" x="${cx}" y="${(cy + SIZE * 0.78).toFixed(1)}" text-anchor="middle">${escapeXml(clip(rec.name, 14))}</text>`;
     }
   }
-  return `<g class="${cls}" data-id="${id}">${inner}</g>`;
+  return {
+    base: `<g class="${cls}" data-id="${id}">${base}</g>`,
+    top: `<g class="hex-top" data-id="${id}">${top}</g>`,
+  };
 }
 
 function badge(x, y, kind, color, count) {
@@ -372,15 +382,17 @@ function badge(x, y, kind, color, count) {
 function renderMap() {
   const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
   mapEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  let cells = '';
+  let base = '', top = '';
   for (let col = 0; col < S.atlas.cols; col++) {
     for (let row = 0; row < S.atlas.rows; row++) {
-      cells += buildHex(col, row);
+      const p = buildHex(col, row);
+      base += p.base; top += p.top;
     }
   }
-  // Layers, bottom to top: hexes, then rivers (over terrain, under the top
-  // affordances), then the overlay (selection outline + markers + draw preview).
-  mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="river-layer"></g><g id="overlay"></g>`;
+  // Layers, bottom to top: hex fills + terrain, then rivers, then the grid
+  // outlines + numbers (so rivers read as geography under the map's grid), then
+  // the overlay (selection outline + markers + draw preview).
+  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="grid-layer">${top}</g><g id="overlay"></g>`;
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
   drawRivers();
   drawOverlay();
@@ -523,11 +535,13 @@ function smoothPath(p) {
 function drawRivers() {
   const rl = mapEl.querySelector('#river-layer');
   if (!rl) return;
+  // Drawn at the same colour and ~opacity as an Ocean/Coast hex fill (see the
+  // ocean fillOp in buildHex), so a river reads as the same water — seamless
+  // where it meets the sea, a clean channel over land.
   rl.innerHTML = (S.atlas.rivers || []).map((line) => {
     const d = smoothPath(line);
     if (!d) return '';
-    return `<path d="${d}" fill="none" stroke="${RIVER_COLOR}" stroke-opacity="0.32" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<path d="${d}" fill="none" stroke="${RIVER_COLOR}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    return `<path d="${d}" fill="none" stroke="${RIVER_COLOR}" stroke-opacity="0.5" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>`;
   }).join('');
 }
 
@@ -581,10 +595,13 @@ function clientToBoard(clientX, clientY) {
 }
 
 function refreshHex(id) {
-  const node = mapEl.querySelector(`.hex[data-id="${id}"]`);
-  if (!node) return;
+  const base = mapEl.querySelector(`#hex-layer .hex[data-id="${id}"]`);
+  const top = mapEl.querySelector(`#grid-layer .hex-top[data-id="${id}"]`);
+  if (!base && !top) return;
   const { col, row } = parseId(id);
-  node.outerHTML = buildHex(col, row);
+  const parts = buildHex(col, row);
+  if (base) base.outerHTML = parts.base;
+  if (top) top.outerHTML = parts.top;
 }
 
 // The overlay layer, drawn above every hex: the active-hex highlight (a single

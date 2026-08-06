@@ -158,14 +158,17 @@ input, select, textarea { font-family: inherit; color: inherit; }
 #map.painting { cursor: var(--map-cursor), crosshair; }
 
 .hex { cursor: inherit; }  /* use the map's cross cursor over hexes, not a pointer */
-.hex polygon { stroke: var(--hex-line); stroke-width: 1; transition: fill .12s; }
-#overlay { pointer-events: none; }
+.hex polygon { transition: fill .12s; }               /* base = terrain fill (no stroke) */
+/* Rivers and the grid/label layer sit above the fills but must not eat clicks —
+   the base .hex polygons are the hit targets. */
+#river-layer, #grid-layer, #overlay { pointer-events: none; }
+.hex-top polygon { fill: none; stroke: var(--hex-line); stroke-width: 1; }  /* the grid outline, over rivers */
 .sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
-.hex .hex-label { fill: var(--ink-dim); opacity: .6; font-size: 8px; font-family: var(--sans); pointer-events: none; }
-.hex .hex-name { fill: var(--ink); font-size: 8.5px; font-weight: 600; font-family: var(--serif); pointer-events: none; }
+.hex-top .hex-label { fill: var(--ink-dim); opacity: .6; font-size: 8px; font-family: var(--sans); }
+.hex-top .hex-name { fill: var(--ink); font-size: 8.5px; font-weight: 600; font-family: var(--serif); }
 .hex .glyph { pointer-events: none; }
-.hex.canon polygon { stroke-dasharray: none; }
-.hex .canon-star { pointer-events: none; }
+.hex-top.canon polygon { stroke-dasharray: none; }
+.hex-top .canon-star { pointer-events: none; }
 
 .map-hud {
   position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center;
