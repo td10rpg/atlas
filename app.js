@@ -852,7 +852,11 @@ function onInspectorClick(e) {
     case 'icon-auto': { const hx = ensureHex(S.atlas, id); hx.iconPinned = false; applyTerrainIcon(hx); commit(id); break; }
     case 'copy': navigator.clipboard?.writeText(serializeHex(h)).then(() => toast('Stat-block copied')).catch(() => toast('Copy failed', true)); break;
     case 'clear':
-      if (confirm(`Clear hex ${id}? This deletes its file.`)) { eraseHex(id); }
+      confirmModal({
+        title: `Clear hex ${id}?`,
+        body: 'This deletes the hex and its file. It can be undone with Ctrl/Cmd-Z.',
+        choices: [{ value: 'ok', label: 'Clear hex', primary: true, danger: true }],
+      }).then((r) => { if (r === 'ok') eraseHex(id); });
       break;
   }
 }
@@ -997,7 +1001,16 @@ function mkFakeBtn(action) {
 // ---- folder open / new / import / export ----------------------------------
 
 async function newFolder() {
-  const withCanon = confirm('Seed this new atlas with the Hinterlands canon hexes (Fort Caspar and the five region anchors)?\n\nOK = yes, Cancel = start empty.');
+  const choice = await confirmModal({
+    title: 'New atlas',
+    body: 'Seed this atlas with the Hinterlands canon hexes (Fort Caspar and the five region anchors), or start from a blank grid?',
+    choices: [
+      { value: 'canon', label: 'Seed with canon', primary: true },
+      { value: 'empty', label: 'Start empty' },
+    ],
+  });
+  if (choice === null) return;               // dismissed — create nothing
+  const withCanon = choice === 'canon';
   try {
     const { dir, atlas } = await store.createAtlasFolder(withCanon);
     S.dir = dir; S.atlas = atlas;
@@ -1009,7 +1022,12 @@ async function newFolder() {
   }
 }
 async function randomMap() {
-  if (!confirm(`Generate a new random terrain map (${S.atlas.cols}×${S.atlas.rows})?\n\nThis replaces the current atlas. Terrain is filled in coherently; every hex's survey content stays blank for you to roll.`)) return;
+  const ok = await confirmModal({
+    title: `Generate a random ${S.atlas.cols}×${S.atlas.rows} map?`,
+    body: 'This replaces the current atlas. Terrain is filled in coherently; every hex’s survey content stays blank for you to roll.',
+    choices: [{ value: 'ok', label: 'Generate map', primary: true, danger: true }],
+  });
+  if (ok !== 'ok') return;
   S.atlas = createRandomAtlas(S.atlas.cols, S.atlas.rows);
   if (S.dir) { try { await store.saveAll(S.dir, S.atlas); } catch (err) { toast('Could not save: ' + err.message, true); } }
   afterLoad();
@@ -1187,6 +1205,45 @@ function closeModal() {
   tableEdit = null;
   const el = $('#modal'); if (el) el.remove();
   renderInspector(); // refresh the "customised" hints on the tags
+}
+
+// A promise-based confirmation modal, replacing native confirm(). Reuses the
+// .modal / .modal-card chrome so it reads as part of the app. `choices` is an
+// array of { value, label, primary?, danger? }; resolves to the chosen value,
+// or null if dismissed (Cancel button, backdrop click, or Esc). Enter triggers
+// the primary choice. Its own #confirm element keeps it clear of the table
+// editor's #modal and handlers.
+function confirmModal({ title, body, choices, cancelLabel = 'Cancel' }) {
+  return new Promise((resolve) => {
+    const prev = $('#confirm'); if (prev) prev.remove();
+    const el = document.createElement('div');
+    el.id = 'confirm'; el.className = 'modal';
+    const btns = choices.map((c, i) =>
+      `<button class="btn${c.primary ? ' primary' : ''}${c.danger ? ' danger' : ''}" data-cv="${i}">${escapeHtml(c.label)}</button>`).join('');
+    el.innerHTML =
+      `<div class="modal-card confirm-card" role="alertdialog" aria-modal="true" aria-label="${escapeHtml(title)}">` +
+        `<div class="modal-head"><h3>${escapeHtml(title)}</h3></div>` +
+        (body ? `<p class="modal-body">${escapeHtml(body)}</p>` : '') +
+        `<div class="modal-foot confirm-foot">` +
+          `<button class="btn ghost" data-cv="cancel">${escapeHtml(cancelLabel)}</button>` +
+          `<span class="foot-spacer"></span>${btns}` +
+        `</div>` +
+      `</div>`;
+    document.body.appendChild(el);
+    const done = (val) => { document.removeEventListener('keydown', onKey); el.remove(); resolve(val); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); done(null); }
+      else if (e.key === 'Enter') { const p = choices.find((c) => c.primary); if (p) { e.preventDefault(); done(p.value); } }
+    };
+    el.addEventListener('click', (e) => {
+      if (e.target === el) return done(null);                 // backdrop
+      const b = e.target.closest('[data-cv]'); if (!b) return;
+      done(b.dataset.cv === 'cancel' ? null : choices[+b.dataset.cv].value);
+    });
+    document.addEventListener('keydown', onKey);
+    const focusBtn = el.querySelector('.btn.primary') || el.querySelector('[data-cv="0"]');
+    if (focusBtn) focusBtn.focus();
+  });
 }
 
 // ---- import a map image → native hexes (backlog 6) ------------------------
