@@ -101,11 +101,19 @@ export async function removeHex(dir, id) {
 }
 
 /** Persist an entire atlas at once — config plus every populated hex file. */
-export async function saveAll(dir, atlas) {
+export async function saveAll(dir, atlas, onProgress) {
   await saveConfig(dir, atlas);
   const hexDir = await dir.getDirectoryHandle(HEX_DIR, { create: true });
-  for (const id of Object.keys(atlas.hexes)) {
-    await writeTextFile(hexDir, id + '.md', serializeHex(atlas.hexes[id]));
+  const ids = Object.keys(atlas.hexes);
+  // Write in concurrent batches instead of one-at-a-time: each file is several
+  // async File System Access ops, so a sequential loop over hundreds of hexes
+  // (e.g. a random map) serialises into seconds. Batching keeps it responsive.
+  const CONC = 16;
+  let done = 0;
+  for (let i = 0; i < ids.length; i += CONC) {
+    await Promise.all(ids.slice(i, i + CONC).map((id) =>
+      writeTextFile(hexDir, id + '.md', serializeHex(atlas.hexes[id]))
+        .then(() => { done++; if (onProgress) onProgress(done, ids.length); })));
   }
 }
 

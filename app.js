@@ -1307,6 +1307,32 @@ async function newFolder() {
     toast('Could not create folder: ' + err.message, true);
   }
 }
+// ---- busy overlay (for the multi-second bulk generators / disk writes) -----
+let busyTimer = null;
+const BUSY_MSGS = ['Surveying the region…', 'Charting the frontier…', 'Mapping the hexes…',
+  'Walking the hills…', 'Sounding the rivers…', 'Reading the country…', 'Naming the wilds…'];
+function showBusy() {
+  hideBusy();
+  const el = document.createElement('div'); el.id = 'busy'; el.className = 'busy';
+  el.innerHTML = `<div class="busy-card"><div class="busy-msg"></div><div class="busy-bar"><i></i></div></div>`;
+  document.body.appendChild(el);
+  const m = el.querySelector('.busy-msg');
+  let i = 0; m.textContent = BUSY_MSGS[0];
+  busyTimer = setInterval(() => { i = (i + 1) % BUSY_MSGS.length; m.textContent = BUSY_MSGS[i]; }, 850);
+}
+function busyProgress(done, total) {
+  const bar = mapEl && document.querySelector('#busy .busy-bar > i');
+  if (bar && total) bar.style.width = Math.round((done / total) * 100) + '%';
+}
+function hideBusy() {
+  if (busyTimer) { clearInterval(busyTimer); busyTimer = null; }
+  const el = document.querySelector('#busy'); if (el) el.remove();
+}
+// Yield the event loop so the overlay paints before the synchronous render.
+// Uses setTimeout (not requestAnimationFrame, which pauses when the tab/pane is
+// hidden and would hang generation in a backgrounded window).
+const nextFrame = () => new Promise((r) => setTimeout(r, 16));
+
 async function randomMap() {
   const ok = await confirmModal({
     title: `Generate a random ${S.atlas.cols}×${S.atlas.rows} map?`,
@@ -1314,9 +1340,12 @@ async function randomMap() {
     choices: [{ value: 'ok', label: 'Generate map', primary: true, danger: true }],
   });
   if (ok !== 'ok') return;
+  showBusy();
+  await nextFrame();
   S.atlas = createRandomAtlas(S.atlas.cols, S.atlas.rows);
-  if (S.dir) { try { await store.saveAll(S.dir, S.atlas); } catch (err) { toast('Could not save: ' + err.message, true); } }
   afterLoad();
+  if (S.dir) { try { await store.saveAll(S.dir, S.atlas, busyProgress); } catch (err) { toast('Could not save: ' + err.message, true); } }
+  hideBusy();
   toast('Random terrain map generated.');
 }
 async function openFolder() {
@@ -1709,9 +1738,12 @@ async function doImportMap(cols) {
   const img = importImg; importImg = null;
   const el = $('#modal'); if (el) el.remove();
   if (!img) return;
+  showBusy();
+  await nextFrame();
   S.atlas = convertImageToAtlas(img, cols);
-  if (S.dir) { try { await store.saveAll(S.dir, S.atlas); } catch (e) { toast('Could not save: ' + e.message, true); } }
   afterLoad();
+  if (S.dir) { try { await store.saveAll(S.dir, S.atlas, busyProgress); } catch (e) { toast('Could not save: ' + e.message, true); } }
+  hideBusy();
   toast(`Imported → ${Object.keys(S.atlas.hexes).length} hexes.`);
 }
 
