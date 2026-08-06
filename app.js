@@ -34,6 +34,7 @@ const TERRAIN_COLOR = {
   'Swamp or Wetlands': '#5f8f78', 'Ocean or Coast': '#6f9a9a', 'Tundra': '#a9c4d6',
   'Desert': '#d9c07f', 'Urban': '#8f7a6a',
 };
+const RIVER_COLOR = '#2f7d9e'; // teal water channel for drawn rivers
 
 const BRAND_SVG = '<path d="M12 2l3 6 6 .5-4.5 4.2 1.4 6.3L12 16.9 6.1 19l1.4-6.3L3 8.5 9 8z" fill="none" stroke="currentColor" stroke-width="1.4"/>';
 const TOOL_ICONS = {
@@ -44,6 +45,7 @@ const TOOL_ICONS = {
   site: '<path d="M7 21V4l10 3-10 3"/>',
   erase: '<path d="M4 15l7-7 7 7-4 4H8z"/><path d="M8 21h10"/>',
   marker: '<path d="M12 21s6-5.7 6-11a6 6 0 0 0-12 0c0 5.3 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  river: '<path d="M3 7c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/><path d="M3 15c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/>',
 };
 const WAG_LINES = [
   { key: 'weather', tag: 'Weather · Table A' },
@@ -201,6 +203,7 @@ function buildTools() {
     '<div class="sep"></div>' +
     tool('terrain', 'Paint terrain — click to pick the brush') +
     tool('region', 'Paint region — click to pick the region') +
+    tool('river', 'Draw a river — drag to trace; tap a river to remove it') +
     '<div class="sep"></div>' +
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
@@ -375,11 +378,136 @@ function renderMap() {
       cells += buildHex(col, row);
     }
   }
-  // Layers, bottom to top: hexes, then the overlay (selection outline + markers),
-  // so nothing overpaints the top affordances.
-  mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="overlay"></g>`;
+  // Layers, bottom to top: hexes, then rivers (over terrain, under the top
+  // affordances), then the overlay (selection outline + markers + draw preview).
+  mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="river-layer"></g><g id="overlay"></g>`;
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
+  drawRivers();
   drawOverlay();
+}
+
+// ---- rivers (freehand → snapped to an invisible sub-hex lattice) -----------
+// The river follows the vertices of a finer hex grid laid over the map: one
+// sub-hex per mile, so a 6-mile hex carries a 6× lattice (and it scales with the
+// atlas's hexMiles). Snapping keeps a freehand stroke anchored to the hex
+// geometry — it meanders like a hand-drawn river but still "belongs" to the grid.
+
+/** Radius of a sub-hex: SIZE / (miles per hex), so each sub-hex spans one mile. */
+function subHexR() { return SIZE / Math.max(1, Math.round(S.atlas.hexMiles || 6)); }
+
+/** Round fractional axial (q, r) coordinates to the nearest hex (cube rounding). */
+function axialRound(q, r) {
+  let x = q, z = r, y = -x - z;
+  let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+  const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+  if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
+  return [rx, rz];
+}
+
+/** Snap a board point to the nearest vertex of the sub-hex lattice (flat-top). */
+function snapToSubVertex(px, py) {
+  const r = subHexR();
+  const q = (2 / 3 * px) / r;
+  const rr = (-1 / 3 * px + Math.sqrt(3) / 3 * py) / r;
+  const [cq, cr] = axialRound(q, rr);
+  const cx = r * 1.5 * cq;
+  const cy = r * Math.sqrt(3) * (cr + cq / 2);
+  let best = null, bd = Infinity;
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI / 180) * (60 * i);
+    const vx = cx + r * Math.cos(a), vy = cy + r * Math.sin(a);
+    const d = (vx - px) ** 2 + (vy - py) ** 2;
+    if (d < bd) { bd = d; best = [vx, vy]; }
+  }
+  return best;
+}
+
+/** Turn a raw freehand path (board points) into a deduped snapped-vertex polyline. */
+function riverFromRaw(raw) {
+  const out = [];
+  for (const [px, py] of raw) {
+    const v = snapToSubVertex(px, py);
+    const last = out[out.length - 1];
+    if (!last || last[0] !== v[0] || last[1] !== v[1]) out.push(v);
+  }
+  return out;
+}
+
+/** A smooth Catmull-Rom path (as SVG "d") through the given points. */
+function smoothPath(p) {
+  if (!p || p.length < 2) return '';
+  const f = (n) => n.toFixed(1);
+  if (p.length === 2) return `M${f(p[0][0])},${f(p[0][1])} L${f(p[1][0])},${f(p[1][1])}`;
+  let d = `M${f(p[0][0])},${f(p[0][1])}`;
+  for (let i = 0; i < p.length - 1; i++) {
+    const p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(p2[0])},${f(p2[1])}`;
+  }
+  return d;
+}
+
+/** Render every stored river as a soft teal water channel (a wide translucent
+ *  body plus a solid core). */
+function drawRivers() {
+  const rl = mapEl.querySelector('#river-layer');
+  if (!rl) return;
+  rl.innerHTML = (S.atlas.rivers || []).map((line) => {
+    const d = smoothPath(line);
+    if (!d) return '';
+    return `<path d="${d}" fill="none" stroke="${RIVER_COLOR}" stroke-opacity="0.32" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<path d="${d}" fill="none" stroke="${RIVER_COLOR}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }).join('');
+}
+
+/** While drawing, show the snapped path live in the overlay (dashed). */
+function setRiverPreview(pts) {
+  const ov = mapEl.querySelector('#overlay'); if (!ov) return;
+  let p = ov.querySelector('#river-preview');
+  const d = smoothPath(pts);
+  if (!d) { if (p) p.remove(); return; }
+  if (!p) {
+    p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.id = 'river-preview';
+    p.setAttribute('fill', 'none'); p.setAttribute('stroke', RIVER_COLOR);
+    p.setAttribute('stroke-width', '2'); p.setAttribute('stroke-linecap', 'round');
+    p.setAttribute('stroke-linejoin', 'round'); p.setAttribute('stroke-dasharray', '1 3');
+    ov.appendChild(p);
+  }
+  p.setAttribute('d', d);
+}
+function clearRiverPreview() {
+  const p = mapEl.querySelector('#river-preview'); if (p) p.remove();
+}
+
+/** Add a finished river (≥ 2 snapped vertices). */
+function addRiver(raw) {
+  const line = riverFromRaw(raw);
+  if (line.length < 2) return;
+  (S.atlas.rivers || (S.atlas.rivers = [])).push(line);
+  persistConfig(); drawRivers(); recordChange();
+}
+
+/** Tap on/near a river removes it (within half a hex). */
+function deleteRiverAt(px, py) {
+  const rivers = S.atlas.rivers || [];
+  const tol = SIZE * 0.5, tol2 = tol * tol;
+  let bestIdx = -1, bd = tol2;
+  rivers.forEach((line, idx) => {
+    for (const [x, y] of line) {
+      const d = (x - px) ** 2 + (y - py) ** 2;
+      if (d < bd) { bd = d; bestIdx = idx; }
+    }
+  });
+  if (bestIdx >= 0) { rivers.splice(bestIdx, 1); persistConfig(); drawRivers(); recordChange(); toast('River removed'); }
+}
+
+/** Client (screen) coords → board (SVG user) coords under the current view. */
+function clientToBoard(clientX, clientY) {
+  const rect = mapEl.getBoundingClientRect();
+  const v = S.view;
+  return [v.x + ((clientX - rect.left) / rect.width) * v.w, v.y + ((clientY - rect.top) / rect.height) * v.h];
 }
 
 function refreshHex(id) {
@@ -476,19 +604,23 @@ let pointer = null;
 function wirePointer() {
   mapEl.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
-    mapEl.setPointerCapture(e.pointerId);
+    try { mapEl.setPointerCapture(e.pointerId); } catch {}
     const hex = e.target.closest('.hex');
     const downId = hex ? hex.dataset.id : null;
-    // Paint tools stamp on drag; Inspect pans.
-    const mode = (S.tool !== 'inspect' && downId) ? 'paint' : 'pan';
+    // River traces freehand; other paint tools stamp on drag; Inspect pans.
+    const mode = S.tool === 'river' ? 'river' : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
     pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId };
     if (mode === 'paint') paintHex(downId, true);
-    mapEl.classList.add('grabbing');
+    if (mode === 'river') pointer.raw = [clientToBoard(e.clientX, e.clientY)];
+    else mapEl.classList.add('grabbing');
   });
   mapEl.addEventListener('pointermove', (e) => {
     if (!pointer) return;
     if (pointer.mode === 'pan') {
       pan(e.clientX - pointer.lx, e.clientY - pointer.ly);
+    } else if (pointer.mode === 'river') {
+      pointer.raw.push(clientToBoard(e.clientX, e.clientY));
+      setRiverPreview(riverFromRaw(pointer.raw));
     } else {
       const hex = document.elementFromPoint(e.clientX, e.clientY);
       const g = hex && hex.closest ? hex.closest('.hex') : null;
@@ -500,7 +632,13 @@ function wirePointer() {
   });
   const end = (e) => {
     if (!pointer) return;
-    if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) setSelected(pointer.downId);
+    if (pointer.mode === 'river') {
+      clearRiverPreview();
+      if (pointer.moved) addRiver(pointer.raw);
+      else { const [bx, by] = clientToBoard(e.clientX, e.clientY); deleteRiverAt(bx, by); }
+    } else if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) {
+      setSelected(pointer.downId);
+    }
     mapEl.classList.remove('grabbing');
     try { mapEl.releasePointerCapture(e.pointerId); } catch {}
     pointer = null;
@@ -620,7 +758,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], customTables: S.atlas.customTables || {} },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} },
       hexes,
     }));
   } catch { /* quota or private mode — ignore */ }
@@ -651,6 +789,7 @@ function snapshot() {
   return {
     name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles,
     markers: clone(S.atlas.markers || []),
+    rivers: clone(S.atlas.rivers || []),
     customTables: clone(S.atlas.customTables || {}),
     hexes: clone(S.atlas.hexes || {}),
   };
@@ -673,6 +812,7 @@ function applySnapshot(snap) {
   const oldHexes = S.atlas.hexes || {};
   S.atlas.name = snap.name; S.atlas.cols = snap.cols; S.atlas.rows = snap.rows; S.atlas.hexMiles = snap.hexMiles;
   S.atlas.markers = clone(snap.markers);
+  S.atlas.rivers = clone(snap.rivers || []);
   S.atlas.customTables = clone(snap.customTables || {}); setTableOverrides(S.atlas.customTables);
   const newHexes = clone(snap.hexes);
   S.atlas.hexes = newHexes;
@@ -1112,7 +1252,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], customTables: S.atlas.customTables || {} }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);

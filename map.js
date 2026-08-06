@@ -26,8 +26,19 @@ export function createAtlas(name = 'The Hinterlands') {
     createdWith: 'td10 Atlas',
     hexes: {},      // id -> hex record (populated only)
     markers: [],    // atlas-level overlay: [{ type, hexId, label }] (backlog 16)
+    rivers: [],     // atlas-level overlay: [ [[x,y], …], … ] — polylines of snapped
+                    //   sub-hex-lattice vertices in board units (the river tool)
     customTables: {}, // per-atlas WAG table overrides: { tableKey: [{name, desc}] } (backlog 4)
   };
+}
+
+/** Coerce a raw rivers array into clean polylines of [x, y] board points. */
+export function normalizeRivers(raw) {
+  return (Array.isArray(raw) ? raw : [])
+    .map((line) => (Array.isArray(line) ? line
+      .map((p) => (Array.isArray(p) && Number.isFinite(+p[0]) && Number.isFinite(+p[1]) ? [+p[0], +p[1]] : null))
+      .filter(Boolean) : []))
+    .filter((line) => line.length >= 2);
 }
 
 const EDITABLE_KEYS = new Set(EDITABLE_TABLES.map((t) => t.key));
@@ -90,6 +101,7 @@ export function normalizeConfig(raw) {
     a.rows = clampInt(raw.rows, 1, 60, DEFAULT_ROWS);
     a.hexMiles = clampInt(raw.hexMiles, 1, 100, DEFAULT_HEX_MILES);
     a.markers = normalizeMarkers(raw.markers);
+    a.rivers = normalizeRivers(raw.rivers);
     a.customTables = normalizeCustomTables(raw.customTables);
   }
   return a;
