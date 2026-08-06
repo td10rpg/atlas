@@ -35,19 +35,19 @@
   glyph per hex); land terrain and region get a stable per-hex value jitter;
   unsurveyed land is softly tinted by its region so the five regions read as
   zones. *(Textured fills / feathered coastlines still possible later.)*
-- [x] **R. River tool** — click a hex to drop a river in its middle, click an
-  **adjacent** hex to connect; the ordered path winds hex-to-hex (each hex keeps
-  the neighbour it first joined). **Geometry:** the center path is smoothed with
-  **Chaikin corner-cutting** (never overshoots, de-zigzags the offset-hex path) so
-  it reads as a clean channel, not a worm. **Colour:** a palette `--river` teal in
-  the sea family (no clash). **Three widths** (Stream / River / Major), live
-  rubber-band. Click the end hex or Esc to finish, click a river to remove;
-  multiple rivers; stored as `{w, hexes:[id…]}` in `atlas.json`; undo-aware.
-  **Terminates in water:** connecting to an Ocean/Coast hex auto-finishes it and
-  blooms a small estuary pool at the mouth. *(Iterated center-line → lattice-snap →
-  hex-path → this Chaikin+palette pass.)*
+- [ ] **R. River tool** — *shelved.* Tried several designs — hex-centre paths
+  (lattice-snap → adjacent-hex winding → Chaikin-smoothed), then freehand
+  drag-to-draw rendered as a tapered ribbon (bold, then restyled to a low-opacity
+  sea-coloured channel with a thin bank line). None sat right on the hex map: a
+  smooth free-curve reads as a different visual language than the quantized hexes,
+  and a hex-centre worm reads mechanical. Removed entirely for now to keep the map
+  clean. If revisited, the promising direction is **hex-edge routing** — rivers that
+  follow the shared edges between hexes (the classic Worldographer/Hexographer look),
+  drawn thin in the map's own line weight/palette so they belong to the grid by
+  construction. Drawing input could stay freehand and snap the stroke onto the edge
+  network.
 - [x] **18. Undo / redo** — Ctrl/Cmd-Z and Shift-Z (plus HUD ↶ ↷), covering
-  paint, stamps, generate, edits, erase, rivers, markers, and grid/scale. Bounded
+  paint, stamps, generate, edits, erase, markers, and grid/scale. Bounded
   debounced full-atlas snapshots (a drag or a burst of typing = one step); undo
   re-persists only the hex files that changed.
 - [x] **4. Editable WAG tables** — each result card's table label is clickable and
@@ -69,7 +69,8 @@
 
 **All backlog items to date are done.** Open follow-ups noted inline: the
 canonical WAG terrain table (item 5) and content reconcile, the extra icon/hex
-polish (7/8), and the river-tool tuning the author is iterating on.
+polish (7/8), and the shelved river tool (R — dropped for now; hex-edge routing
+is the direction if revisited).
 
 Assets pulled from `td10rpg/td10` for the remaining items live in `assets/`
 (`the-fort-world-map.png`, `wag-terrain-key.png`). The canonical WAG tool is at

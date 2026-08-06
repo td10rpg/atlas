@@ -26,7 +26,6 @@ export function createAtlas(name = 'The Hinterlands') {
     createdWith: 'td10 Atlas',
     hexes: {},      // id -> hex record (populated only)
     markers: [],    // atlas-level overlay: [{ type, hexId, label }] (backlog 16)
-    rivers: [],     // atlas-level overlay: [ {w, hexes:[id…]} … ] — a river per path
     customTables: {}, // per-atlas WAG table overrides: { tableKey: [{name, desc}] } (backlog 4)
   };
 }
@@ -52,19 +51,6 @@ export function normalizeMarkers(raw) {
   return (Array.isArray(raw) ? raw : [])
     .filter((m) => m && m.hexId && m.type)
     .map((m) => ({ type: String(m.type), hexId: String(m.hexId), label: typeof m.label === 'string' ? m.label : '' }));
-}
-
-/** Coerce raw rivers into clean records: { w: 1|2|3, hexes: [id, …] } — an ordered
- *  path of adjacent hexes the river winds through. */
-export function normalizeRivers(raw) {
-  return (Array.isArray(raw) ? raw : [])
-    .map((r) => {
-      if (!r) return null;
-      const hexes = Array.isArray(r.hexes) ? r.hexes.filter((id) => typeof id === 'string' && /^\d{4}$/.test(id)) : [];
-      if (hexes.length < 2) return null;
-      return { w: [1, 2, 3].includes(r.w) ? r.w : 2, hexes };
-    })
-    .filter(Boolean);
 }
 
 export function getHex(atlas, id) {
@@ -104,7 +90,6 @@ export function normalizeConfig(raw) {
     a.rows = clampInt(raw.rows, 1, 60, DEFAULT_ROWS);
     a.hexMiles = clampInt(raw.hexMiles, 1, 100, DEFAULT_HEX_MILES);
     a.markers = normalizeMarkers(raw.markers);
-    a.rivers = normalizeRivers(raw.rivers);
     a.customTables = normalizeCustomTables(raw.customTables);
   }
   return a;

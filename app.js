@@ -40,7 +40,6 @@ const TOOL_ICONS = {
   inspect: '<path d="M5 3l14 8-6 1.6L10 19z"/>',
   terrain: '<path d="M3 21l6-2 9-9-4-4-9 9z"/><path d="M13.5 6.5l4 4"/>',
   region: '<path d="M6 3v18"/><path d="M6 4h11l-2.5 3.5L17 11H6"/>',
-  river: '<path d="M7 3c-1.6 3.5 3.5 4.5 1.8 8S5.5 16 7 21"/><path d="M15 3c-1.6 3.5 3.5 4.5 1.8 8S13.5 16 15 21"/>',
   settlement: '<path d="M4 20V11l8-6 8 6v9z"/><path d="M9.5 20v-5h5v5"/>',
   site: '<path d="M7 21V4l10 3-10 3"/>',
   erase: '<path d="M4 15l7-7 7 7-4 4H8z"/><path d="M8 21h10"/>',
@@ -65,9 +64,6 @@ const S = {
   brushRegion: 'The Pine Expanse',
   showLabels: true,
   notesTab: 'write',
-  riverDraft: null,     // { w, hexes:[id…] } while tracing, else null
-  riverHoverHex: null,  // hex id under the cursor while tracing (rubber-band)
-  riverWidth: 2,        // current river width (1 Stream / 2 River / 3 Major)
   theme: 'auto',        // 'auto' | 'light' | 'dark' (backlog 14)
   view: { x: 0, y: 0, w: 100, h: 100 },
 };
@@ -205,7 +201,6 @@ function buildTools() {
     '<div class="sep"></div>' +
     tool('terrain', 'Paint terrain') +
     tool('region', 'Paint region') +
-    tool('river', 'River — click hexes to trace a river; Esc / click the end to finish') +
     '<div class="sep"></div>' +
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
@@ -215,11 +210,10 @@ function buildTools() {
 }
 
 function setTool(key) {
-  if (S.tool === 'river' && key !== 'river') finishRiver(); // leaving the tool commits the draft
   S.tool = key;
   buildTools();
   renderHud();
-  mapEl.classList.toggle('painting', key !== 'inspect' && key !== 'river');
+  mapEl.classList.toggle('painting', key !== 'inspect');
 }
 
 // ---- HUD (zoom, labels, grid size, brush context) -------------------------
@@ -237,12 +231,6 @@ function renderHud() {
       `<select data-hud="brush-region">` +
       REGIONS.map((r) => `<option ${r.name === S.brushRegion ? 'selected' : ''}>${r.name}</option>`).join('') +
       `</select>`;
-  } else if (S.tool === 'river') {
-    const wbtn = (n, label) => `<button class="btn small ${S.riverWidth === n ? 'primary' : ''}" data-hud="rw-${n}" title="${label}">${'▍▐█'[n - 1] || ''}</button>`;
-    brush = `<span class="sep2">|</span> Width ${wbtn(1, 'Stream')}${wbtn(2, 'River')}${wbtn(3, 'Major')}` +
-      `<span class="sep2">|</span> ` + (S.riverDraft
-        ? `Tracing (${S.riverDraft.hexes.length}) — click an adjacent hex · click the end or Esc to finish`
-        : `Click a hex to start a river · click an adjacent hex to connect · click a river to remove`);
   }
   hudEl.innerHTML =
     `<button class="btn small" data-action="zoom-out" title="Zoom out">−</button>` +
@@ -334,84 +322,11 @@ function renderMap() {
       cells += buildHex(col, row);
     }
   }
-  // Layers, bottom to top: hexes, rivers (over the fills), then the overlay
-  // (selection outline + markers), so nothing overpaints the top affordances.
-  mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="rivers"></g><g id="overlay"></g>`;
+  // Layers, bottom to top: hexes, then the overlay (selection outline + markers),
+  // so nothing overpaints the top affordances.
+  mapEl.innerHTML = `<g id="hex-layer">${cells}</g><g id="overlay"></g>`;
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
-  drawRivers();
   drawOverlay();
-}
-
-// Rivers are an ordered path of adjacent hexes: click a hex to drop a river in its
-// middle, click an adjacent hex to connect, and the path order lets it wind (each
-// hex keeps the neighbour it first joined). A Catmull-Rom curve through the hex
-// centres makes it a semi-smooth waterway. Three widths (Stream / River / Major).
-const RIVER_W = [0, 0.10, 0.17, 0.26]; // stroke width by width index, × SIZE
-
-function hexCenterOf(id) { const { col, row } = parseId(id); return hexCenter(col, row, SIZE); }
-function isAdjacent(a, b) {
-  const { col, row } = parseId(a);
-  return neighbors(col, row).some((n) => hexId(n.col, n.row) === b);
-}
-
-function isWaterHex(id) { const h = getHex(S.atlas, id); return !!(h && h.terrain === 'Ocean or Coast'); }
-// Where a river meets the sea: it blooms into a small estuary pool at the mouth
-// hex — a soft circle in the river colour. Subtle, and reads as a mouth without a
-// hard glyph. Drawn at any endpoint whose hex is Ocean or Coast.
-function riverMouths(pts, hexes, w) {
-  if (pts.length < 2) return '';
-  let s = '';
-  [0, pts.length - 1].forEach((ei) => {
-    if (!isWaterHex(hexes[ei])) return;
-    const M = pts[ei];
-    const r = (RIVER_W[w] * SIZE * 1.25 + SIZE * 0.06).toFixed(1);
-    s += `<circle class="river-mouth" cx="${M.x.toFixed(1)}" cy="${M.y.toFixed(1)}" r="${r}"/>`;
-  });
-  return s;
-}
-function drawRivers() {
-  const g = mapEl.querySelector('#rivers');
-  if (!g) return;
-  let s = '';
-  (S.atlas.rivers || []).forEach((r) => {
-    const pts = r.hexes.map(hexCenterOf);
-    s += riverMouths(pts, r.hexes, r.w) + riverSvg(pts, r.w, false);
-  });
-  if (S.riverDraft) {
-    const hx = S.riverDraft.hexes;
-    const pts = hx.map(hexCenterOf);
-    // rubber-band to the hovered hex, but only when it can actually connect
-    if (S.riverHoverHex && !hx.includes(S.riverHoverHex) && isAdjacent(S.riverHoverHex, hx[hx.length - 1])) pts.push(hexCenterOf(S.riverHoverHex));
-    s += riverSvg(pts, S.riverDraft.w, true);
-    pts.forEach((p, i) => { if (i < hx.length) s += `<circle class="river-node" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(SIZE * 0.09).toFixed(1)}"/>`; });
-  }
-  g.innerHTML = s;
-}
-function riverSvg(pts, w, draft) {
-  if (pts.length < 2) return ''; // a lone start node is drawn by drawRivers' node pass
-  const sw = (RIVER_W[w] * SIZE).toFixed(2);
-  return `<path class="river${draft ? ' draft' : ''}" d="${smoothPath(pts)}" style="stroke-width:${sw}"/>`;
-}
-// Chaikin corner-cutting: repeatedly replace each segment's endpoints with points
-// 1/4 and 3/4 along it, keeping the true endpoints. Unlike a Catmull-Rom spline it
-// never overshoots, so a river of adjacent hex centres (which zig-zags in offset
-// coordinates) smooths into a clean channel that hugs the corridor. Rendered as a
-// dense polyline — smooth at map scale.
-function smoothPath(pts) {
-  let p = pts;
-  for (let k = 0; k < 3 && p.length >= 3; k++) {
-    const out = [p[0]];
-    for (let i = 0; i < p.length - 1; i++) {
-      const a = p[i], b = p[i + 1];
-      out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
-      out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
-    }
-    out.push(p[p.length - 1]);
-    p = out;
-  }
-  let d = `M ${p[0].x.toFixed(1)} ${p[0].y.toFixed(1)}`;
-  for (let i = 1; i < p.length; i++) d += ` L ${p[i].x.toFixed(1)} ${p[i].y.toFixed(1)}`;
-  return d;
 }
 
 function refreshHex(id) {
@@ -511,12 +426,11 @@ function wirePointer() {
     mapEl.setPointerCapture(e.pointerId);
     const hex = e.target.closest('.hex');
     const downId = hex ? hex.dataset.id : null;
-    // The river tool is click-to-trace (handled on pointerup), so it pans on drag
-    // like Inspect rather than paints continuously.
-    const paintTool = S.tool !== 'inspect' && S.tool !== 'river';
-    pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode: (paintTool && downId) ? 'paint' : 'pan', last: downId };
-    if (pointer.mode === 'paint') { paintHex(downId, true); mapEl.classList.add('grabbing'); }
-    else mapEl.classList.add('grabbing');
+    // Paint tools stamp on drag; Inspect pans.
+    const mode = (S.tool !== 'inspect' && downId) ? 'paint' : 'pan';
+    pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId };
+    if (mode === 'paint') paintHex(downId, true);
+    mapEl.classList.add('grabbing');
   });
   mapEl.addEventListener('pointermove', (e) => {
     if (!pointer) return;
@@ -533,27 +447,13 @@ function wirePointer() {
   });
   const end = (e) => {
     if (!pointer) return;
-    if (pointer.mode === 'pan' && !pointer.moved) {
-      if (S.tool === 'river') riverClickHex(pointer.downId);
-      else if (pointer.downId) setSelected(pointer.downId);
-    }
+    if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) setSelected(pointer.downId);
     mapEl.classList.remove('grabbing');
     try { mapEl.releasePointerCapture(e.pointerId); } catch {}
     pointer = null;
   };
   mapEl.addEventListener('pointerup', end);
   mapEl.addEventListener('pointercancel', end);
-
-  // River rubber-band: while tracing (and not panning), track the hovered hex so
-  // the next segment previews under the cursor.
-  mapEl.addEventListener('pointermove', (e) => {
-    if (S.tool !== 'river' || !S.riverDraft) return;
-    if (pointer && pointer.moved) return;
-    const el = document.elementFromPoint(e.clientX, e.clientY);
-    const g = el && el.closest ? el.closest('.hex') : null;
-    const id = g ? g.dataset.id : null;
-    if (id !== S.riverHoverHex) { S.riverHoverHex = id; drawRivers(); }
-  });
 
   mapEl.addEventListener('wheel', (e) => {
     e.preventDefault();
@@ -616,47 +516,6 @@ function toggleParty(id) {
   recordChange();
 }
 
-// The river tool: click a hex to drop a river in its middle; click an ADJACENT hex
-// to connect (the ordered path lets it wind). Clicking the end hex finishes it,
-// clicking the previous hex undoes a step; Esc / switching tools also finishes.
-// When idle, clicking any hex on a river removes that river. Rivers live at the
-// atlas level (atlas.json).
-function riverClickHex(id) {
-  if (!id) return;
-  if (S.riverDraft) {
-    const hx = S.riverDraft.hexes;
-    const last = hx[hx.length - 1];
-    if (id === last) { finishRiver(); return; }                       // click the end → finish
-    if (hx.length >= 2 && id === hx[hx.length - 2]) { hx.pop(); drawRivers(); renderHud(); return; } // click prev → undo
-    if (hx.includes(id)) return;                                      // no self-crossing loops
-    if (isAdjacent(id, last)) {
-      hx.push(id);
-      if (isWaterHex(id)) { finishRiver('The river reaches the sea.'); return; } // terminate at water
-      drawRivers(); renderHud();
-      return;
-    }
-    toast('Click a hex next to the river’s end.');
-    return;
-  }
-  const ri = (S.atlas.rivers || []).findIndex((r) => r.hexes.includes(id));
-  if (ri >= 0) { S.atlas.rivers.splice(ri, 1); persistConfig(); drawRivers(); recordChange(); toast('River removed.'); return; }
-  S.riverDraft = { w: S.riverWidth, hexes: [id] };
-  S.riverHoverHex = null;
-  drawRivers(); renderHud();
-}
-function finishRiver(msg) {
-  if (S.riverDraft && S.riverDraft.hexes.length >= 2) {
-    (S.atlas.rivers || (S.atlas.rivers = [])).push({ w: S.riverDraft.w, hexes: S.riverDraft.hexes.slice() });
-    persistConfig();
-    recordChange();
-    toast(msg || 'River added.');
-  }
-  S.riverDraft = null;
-  S.riverHoverHex = null;
-  drawRivers();
-  renderHud();
-}
-
 /** Ensure the hex, mutate it, then persist + repaint + refresh the inspector. */
 function mutate(id, fn) {
   const h = ensureHex(S.atlas, id);
@@ -708,7 +567,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], customTables: S.atlas.customTables || {} },
       hexes,
     }));
   } catch { /* quota or private mode — ignore */ }
@@ -738,7 +597,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x == null ? null : x));
 function snapshot() {
   return {
     name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles,
-    markers: clone(S.atlas.markers || []), rivers: clone(S.atlas.rivers || []),
+    markers: clone(S.atlas.markers || []),
     customTables: clone(S.atlas.customTables || {}),
     hexes: clone(S.atlas.hexes || {}),
   };
@@ -760,7 +619,7 @@ function commitHistory() {
 function applySnapshot(snap) {
   const oldHexes = S.atlas.hexes || {};
   S.atlas.name = snap.name; S.atlas.cols = snap.cols; S.atlas.rows = snap.rows; S.atlas.hexMiles = snap.hexMiles;
-  S.atlas.markers = clone(snap.markers); S.atlas.rivers = clone(snap.rivers);
+  S.atlas.markers = clone(snap.markers);
   S.atlas.customTables = clone(snap.customTables || {}); setTableOverrides(S.atlas.customTables);
   const newHexes = clone(snap.hexes);
   S.atlas.hexes = newHexes;
@@ -1057,13 +916,6 @@ function wireEvents() {
   });
 
   hudEl.addEventListener('click', (e) => {
-    const rw = e.target.closest('[data-hud^="rw-"]');
-    if (rw) {
-      S.riverWidth = +rw.dataset.hud.slice(3);
-      if (S.riverDraft) S.riverDraft.w = S.riverWidth;
-      renderHud(); drawRivers();
-      return;
-    }
     const b = e.target.closest('[data-action]');
     if (!b) return;
     const rect = mapEl.getBoundingClientRect();
@@ -1122,10 +974,10 @@ function wireEvents() {
       return;
     }
     if (e.target.matches('input,textarea,select')) return;
-    const map = { v: 'inspect', t: 'terrain', r: 'region', w: 'river', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
+    const map = { v: 'inspect', t: 'terrain', r: 'region', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
     if (map[e.key]) setTool(map[e.key]);
     if (e.key === 'g' && S.selected) { onInspectorClick({ target: mkFakeBtn('generate') }); }
-    if (e.key === 'Escape') { if ($('#modal')) closeModal(); else if (S.riverDraft) finishRiver(); else setSelected(null); }
+    if (e.key === 'Escape') { if ($('#modal')) closeModal(); else setSelected(null); }
   });
 }
 function mkFakeBtn(action) {
@@ -1177,7 +1029,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], customTables: S.atlas.customTables || {} }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], customTables: S.atlas.customTables || {} }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
