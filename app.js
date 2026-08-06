@@ -354,11 +354,33 @@ function isAdjacent(a, b) {
   return neighbors(col, row).some((n) => hexId(n.col, n.row) === b);
 }
 
+function isWaterHex(id) { const h = getHex(S.atlas, id); return !!(h && h.terrain === 'Ocean or Coast'); }
+// A little delta where a river meets the sea: a soft fan spreading from the mouth
+// hex into the water. Drawn at any endpoint whose hex is Ocean or Coast.
+function riverMouths(pts, hexes, w) {
+  if (pts.length < 2) return '';
+  let s = '';
+  [0, pts.length - 1].forEach((ei) => {
+    if (!isWaterHex(hexes[ei])) return;
+    const M = pts[ei], P = ei === 0 ? pts[1] : pts[pts.length - 2];
+    const dx = M.x - P.x, dy = M.y - P.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+    const spread = RIVER_W[w] * SIZE * 2.6 + SIZE * 0.07;
+    const back = { x: M.x - ux * SIZE * 0.10, y: M.y - uy * SIZE * 0.10 };
+    const tx = M.x + ux * SIZE * 0.34, ty = M.y + uy * SIZE * 0.34;
+    const a = `${(tx + nx * spread).toFixed(1)} ${(ty + ny * spread).toFixed(1)}`;
+    const b = `${(tx - nx * spread).toFixed(1)} ${(ty - ny * spread).toFixed(1)}`;
+    s += `<path class="river-mouth" d="M ${back.x.toFixed(1)} ${back.y.toFixed(1)} L ${a} L ${b} Z"/>`;
+  });
+  return s;
+}
 function drawRivers() {
   const g = mapEl.querySelector('#rivers');
   if (!g) return;
   let s = '';
-  (S.atlas.rivers || []).forEach((r) => { s += riverSvg(r.hexes.map(hexCenterOf), r.w, false); });
+  (S.atlas.rivers || []).forEach((r) => {
+    const pts = r.hexes.map(hexCenterOf);
+    s += riverMouths(pts, r.hexes, r.w) + riverSvg(pts, r.w, false);
+  });
   if (S.riverDraft) {
     const hx = S.riverDraft.hexes;
     const pts = hx.map(hexCenterOf);
@@ -602,7 +624,12 @@ function riverClickHex(id) {
     if (id === last) { finishRiver(); return; }                       // click the end → finish
     if (hx.length >= 2 && id === hx[hx.length - 2]) { hx.pop(); drawRivers(); renderHud(); return; } // click prev → undo
     if (hx.includes(id)) return;                                      // no self-crossing loops
-    if (isAdjacent(id, last)) { hx.push(id); drawRivers(); renderHud(); return; }
+    if (isAdjacent(id, last)) {
+      hx.push(id);
+      if (isWaterHex(id)) { finishRiver('The river reaches the sea.'); return; } // terminate at water
+      drawRivers(); renderHud();
+      return;
+    }
     toast('Click a hex next to the river’s end.');
     return;
   }
@@ -612,12 +639,12 @@ function riverClickHex(id) {
   S.riverHoverHex = null;
   drawRivers(); renderHud();
 }
-function finishRiver() {
+function finishRiver(msg) {
   if (S.riverDraft && S.riverDraft.hexes.length >= 2) {
     (S.atlas.rivers || (S.atlas.rivers = [])).push({ w: S.riverDraft.w, hexes: S.riverDraft.hexes.slice() });
     persistConfig();
     recordChange();
-    toast('River added.');
+    toast(msg || 'River added.');
   }
   S.riverDraft = null;
   S.riverHoverHex = null;

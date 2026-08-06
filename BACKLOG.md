@@ -40,8 +40,10 @@
   the neighbour it first joined), drawn as a semi-smooth Catmull-Rom curve through
   the centres with a live rubber-band. **Three widths** (Stream / River / Major).
   Click the end hex or Esc to finish, click a river to remove it; multiple rivers;
-  stored in `atlas.json` as `{w, hexes:[id…]}`. Undo/redo aware. *(Iterated from
-  center-line → lattice-snap → this hex-path model.)*
+  stored in `atlas.json` as `{w, hexes:[id…]}`. Undo/redo aware. **Terminates in
+  water:** connecting to an Ocean/Coast hex auto-finishes the river and draws a
+  delta at the mouth. *(Iterated from center-line → lattice-snap → this hex-path
+  model.)*
 - [x] **18. Undo / redo** — Ctrl/Cmd-Z and Shift-Z (plus HUD ↶ ↷), covering
   paint, stamps, generate, edits, erase, rivers, markers, and grid/scale. Bounded
   debounced full-atlas snapshots (a drag or a burst of typing = one step); undo
