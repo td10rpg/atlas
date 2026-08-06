@@ -26,9 +26,9 @@
   --mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
   --radius: 5px;            /* match td10.pw / Quartz element rounding */
   --shadow: 0 6px 24px rgba(0,0,0,.4);
-  /* Targeting reticle for the map — drawn with a black halo + white core so it
-     reads on both the dark and light map backgrounds. Hotspot at its centre. */
-  --reticle: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='24'%20height='24'%20viewBox='0%200%2024%2024'%3E%3Cg%20fill='none'%20stroke='black'%20stroke-width='3'%20stroke-linecap='round'%3E%3Ccircle%20cx='12'%20cy='12'%20r='7.5'/%3E%3Cpath%20d='M12%201.5v4M12%2018.5v4M1.5%2012h4M18.5%2012h4'/%3E%3C/g%3E%3Cg%20fill='none'%20stroke='white'%20stroke-width='1.4'%20stroke-linecap='round'%3E%3Ccircle%20cx='12'%20cy='12'%20r='7.5'/%3E%3Cpath%20d='M12%201.5v4M12%2018.5v4M1.5%2012h4M18.5%2012h4'/%3E%3C/g%3E%3Ccircle%20cx='12'%20cy='12'%20r='1.1'%20fill='white'%20stroke='black'%20stroke-width='0.6'/%3E%3C/svg%3E") 12 12;
+  /* Simple cross cursor for the map — a plain plus with a thin black halo and
+     white core so it reads on both the dark and light map backgrounds. */
+  --map-cursor: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='20'%20height='20'%20viewBox='0%200%2020%2020'%3E%3Cg%20fill='none'%20stroke-linecap='round'%3E%3Cpath%20d='M10%202.5v15M2.5%2010h15'%20stroke='black'%20stroke-width='2.6'/%3E%3Cpath%20d='M10%202.5v15M2.5%2010h15'%20stroke='white'%20stroke-width='1.1'/%3E%3C/g%3E%3C/svg%3E") 10 10;
 }
 /* Light palette. Applied automatically when the OS prefers light AND no explicit
    theme is set, or whenever the theme toggle forces light (item 14). The two
@@ -136,11 +136,11 @@ input, select, textarea { font-family: inherit; color: inherit; }
 
 /* ---- map ---- */
 .mapwrap { position: relative; background: var(--map-bg); overflow: hidden; min-width: 0; }
-#map { width: 100%; height: 100%; display: block; touch-action: none; cursor: var(--reticle), crosshair; }
+#map { width: 100%; height: 100%; display: block; touch-action: none; cursor: var(--map-cursor), crosshair; }
 #map.grabbing { cursor: grabbing; }
-#map.painting { cursor: var(--reticle), crosshair; }
+#map.painting { cursor: var(--map-cursor), crosshair; }
 
-.hex { cursor: inherit; }  /* use the map's reticle over hexes, not a pointer */
+.hex { cursor: inherit; }  /* use the map's cross cursor over hexes, not a pointer */
 .hex polygon { stroke: var(--hex-line); stroke-width: 1; transition: fill .12s; }
 #overlay { pointer-events: none; }
 .sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
