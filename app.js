@@ -469,11 +469,29 @@ function chaikin(pts, iters) {
   }
   return p;
 }
-/** Build the river's SVG "d": simplify (kill the staircase), then Chaikin-smooth. */
+/** Whether the turn at b (from a→b→c) is gentle enough not to be a hook. */
+function turnNotHook(a, b, c) {
+  const v1x = b[0] - a[0], v1y = b[1] - a[1], v2x = c[0] - b[0], v2y = c[1] - b[1];
+  const m1 = Math.hypot(v1x, v1y), m2 = Math.hypot(v2x, v2y);
+  if (!m1 || !m2) return false;
+  return (v1x * v2x + v1y * v2y) / (m1 * m2) > -0.5; // keep turns < ~120°; sharper = a pen-lift hook
+}
+/** Drop terminal anchors that fold sharply back — the little curl left when the
+ *  pen lifts (or the stroke starts with a flick). Trims at most a couple per end. */
+function trimHooks(p) {
+  let n = 0;
+  while (p.length >= 3 && n++ < 2 && !turnNotHook(p[p.length - 3], p[p.length - 2], p[p.length - 1])) p = p.slice(0, -1);
+  n = 0;
+  while (p.length >= 3 && n++ < 2 && !turnNotHook(p[2], p[1], p[0])) p = p.slice(1);
+  return p;
+}
+/** Build the river's SVG "d": simplify (kill the staircase), trim end-hooks,
+ *  then Chaikin-smooth. */
 function smoothPath(raw) {
   if (!raw || raw.length < 2) return '';
   const f = (n) => n.toFixed(1);
-  let p = raw.length > 2 ? simplify(raw, subHexR()) : raw;
+  let p = raw.length > 2 ? trimHooks(simplify(raw, subHexR())) : raw;
+  if (p.length < 2) return '';
   if (p.length === 2) return `M${f(p[0][0])},${f(p[0][1])} L${f(p[1][0])},${f(p[1][1])}`;
   p = chaikin(p, 4);
   let d = `M${f(p[0][0])},${f(p[0][1])}`;
