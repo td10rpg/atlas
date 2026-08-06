@@ -35,12 +35,13 @@
   glyph per hex); land terrain and region get a stable per-hex value jitter;
   unsurveyed land is softly tinted by its region so the five regions read as
   zones. *(Textured fills / feathered coastlines still possible later.)*
-- [x] **R. River tool** — click-click-click to trace; each click **snaps to the
-  hex lattice** (corners + edge midpoints) so rivers hug the geometry, drawn as a
-  semi-smooth Catmull-Rom curve with a live rubber-band preview. **Three widths**
-  (Stream / River / Major). Click the last point or Esc to finish, click a river
-  to remove it; multiple rivers; stored in `atlas.json` as `{w, pts:[[x,y]…]}`.
-  Undo/redo aware.
+- [x] **R. River tool** — click a hex to drop a river in its middle, click an
+  **adjacent** hex to connect; the ordered path winds hex-to-hex (each hex keeps
+  the neighbour it first joined), drawn as a semi-smooth Catmull-Rom curve through
+  the centres with a live rubber-band. **Three widths** (Stream / River / Major).
+  Click the end hex or Esc to finish, click a river to remove it; multiple rivers;
+  stored in `atlas.json` as `{w, hexes:[id…]}`. Undo/redo aware. *(Iterated from
+  center-line → lattice-snap → this hex-path model.)*
 - [x] **18. Undo / redo** — Ctrl/Cmd-Z and Shift-Z (plus HUD ↶ ↷), covering
   paint, stamps, generate, edits, erase, rivers, markers, and grid/scale. Bounded
   debounced full-atlas snapshots (a drag or a burst of typing = one step); undo

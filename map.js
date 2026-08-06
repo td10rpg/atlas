@@ -26,7 +26,7 @@ export function createAtlas(name = 'The Hinterlands') {
     createdWith: 'td10 Atlas',
     hexes: {},      // id -> hex record (populated only)
     markers: [],    // atlas-level overlay: [{ type, hexId, label }] (backlog 16)
-    rivers: [],     // atlas-level overlay: [ {w, pts} … ] — a river per path
+    rivers: [],     // atlas-level overlay: [ {w, hexes:[id…]} … ] — a river per path
     customTables: {}, // per-atlas WAG table overrides: { tableKey: [{name, desc}] } (backlog 4)
   };
 }
@@ -54,15 +54,15 @@ export function normalizeMarkers(raw) {
     .map((m) => ({ type: String(m.type), hexId: String(m.hexId), label: typeof m.label === 'string' ? m.label : '' }));
 }
 
-/** Coerce raw rivers into clean records: { w: 1|2|3, pts: [[x,y], …] } in board
- *  coordinates, snapped to the hex lattice by the river tool. */
+/** Coerce raw rivers into clean records: { w: 1|2|3, hexes: [id, …] } — an ordered
+ *  path of adjacent hexes the river winds through. */
 export function normalizeRivers(raw) {
   return (Array.isArray(raw) ? raw : [])
     .map((r) => {
-      if (!r || !Array.isArray(r.pts)) return null;
-      const pts = r.pts.filter((p) => Array.isArray(p) && p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]));
-      if (pts.length < 2) return null;
-      return { w: [1, 2, 3].includes(r.w) ? r.w : 2, pts };
+      if (!r) return null;
+      const hexes = Array.isArray(r.hexes) ? r.hexes.filter((id) => typeof id === 'string' && /^\d{4}$/.test(id)) : [];
+      if (hexes.length < 2) return null;
+      return { w: [1, 2, 3].includes(r.w) ? r.w : 2, hexes };
     })
     .filter(Boolean);
 }
