@@ -21,6 +21,7 @@
   --map-bg: #14201f;        /* a deep teal hint of water */
   --hex-blank: #232528;
   --hex-line: #47454a;
+  --river: #7fb2bf;         /* rivers — a teal in the sea family (dark: lighter) */
   --serif: 'EB Garamond', Georgia, 'Palatino Linotype', 'Times New Roman', serif;
   --sans: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
@@ -36,6 +37,7 @@
     --ink-dim: #4e4e4e; --line: #e5e5e5; --line-soft: #eeecec;
     --accent: #284b63; --accent-2: #84a59d; --on-accent: #faf8f8;
     --map-bg: #e7efee; --hex-blank: #f4f2f1; --hex-line: #d9d6d2;
+    --river: #33707f;
     --shadow: 0 6px 24px rgba(40,50,60,.14);
   }
 }
@@ -44,6 +46,7 @@
   --ink-dim: #4e4e4e; --line: #e5e5e5; --line-soft: #eeecec;
   --accent: #284b63; --accent-2: #84a59d; --on-accent: #faf8f8;
   --map-bg: #e7efee; --hex-blank: #f4f2f1; --hex-line: #d9d6d2;
+  --river: #33707f;
   --shadow: 0 6px 24px rgba(40,50,60,.14);
 }
 /* Forced dark (toggle) just re-asserts the base values so it wins under a light OS. */
@@ -52,6 +55,7 @@
   --ink-dim: #a9a9ad; --line: #393639; --line-soft: #2c2a2e;
   --accent: #7b97aa; --accent-2: #84a59d; --on-accent: #17181a;
   --map-bg: #14201f; --hex-blank: #232528; --hex-line: #47454a;
+  --river: #7fb2bf;
   --shadow: 0 6px 24px rgba(0,0,0,.4);
 }
 
@@ -141,16 +145,11 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .hex polygon { stroke: var(--hex-line); stroke-width: 1; transition: fill .12s; }
 #overlay { pointer-events: none; }
 .sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
-.river { fill: none; stroke: #3f79b0; stroke-linecap: round; stroke-linejoin: round; opacity: .92; pointer-events: none; }
-.river.draft { stroke-dasharray: 4 4; opacity: .7; }
-.river-mouth { fill: #3f79b0; opacity: .5; stroke: none; pointer-events: none; }
-:root[data-theme="dark"] .river-mouth { fill: #5b9fd6; }
-@media (prefers-color-scheme: dark) { .river-mouth { fill: #5b9fd6; } }
-.river-node { fill: #3f79b0; stroke: var(--map-bg); stroke-width: .8; pointer-events: none; }
-.river-node.draft { opacity: .7; }
-:root[data-theme="dark"] .river, :root[data-theme="dark"] .river-node { stroke: #5b9fd6; }
-:root[data-theme="dark"] .river-node { fill: #5b9fd6; }
-@media (prefers-color-scheme: dark) { .river { stroke: #5b9fd6; } .river-node { fill: #5b9fd6; stroke: var(--map-bg); } }
+.river { fill: none; stroke: var(--river); stroke-linecap: round; stroke-linejoin: round; opacity: .9; pointer-events: none; }
+.river.draft { stroke-dasharray: 3 5; opacity: .6; }
+.river-mouth { fill: var(--river); opacity: .4; stroke: none; pointer-events: none; }
+.river-node { fill: var(--river); stroke: var(--map-bg); stroke-width: .8; pointer-events: none; }
+.river-node.draft { opacity: .8; }
 .hex .hex-label { fill: var(--ink-dim); font-size: 8px; font-family: var(--sans); pointer-events: none; }
 .hex .hex-name { fill: var(--ink); font-size: 8.5px; font-weight: 600; font-family: var(--serif); pointer-events: none; }
 .hex .glyph { pointer-events: none; }

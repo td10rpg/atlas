@@ -346,7 +346,7 @@ function renderMap() {
 // middle, click an adjacent hex to connect, and the path order lets it wind (each
 // hex keeps the neighbour it first joined). A Catmull-Rom curve through the hex
 // centres makes it a semi-smooth waterway. Three widths (Stream / River / Major).
-const RIVER_W = [0, 0.09, 0.15, 0.24]; // stroke width by width index, × SIZE
+const RIVER_W = [0, 0.10, 0.17, 0.26]; // stroke width by width index, × SIZE
 
 function hexCenterOf(id) { const { col, row } = parseId(id); return hexCenter(col, row, SIZE); }
 function isAdjacent(a, b) {
@@ -355,21 +355,17 @@ function isAdjacent(a, b) {
 }
 
 function isWaterHex(id) { const h = getHex(S.atlas, id); return !!(h && h.terrain === 'Ocean or Coast'); }
-// A little delta where a river meets the sea: a soft fan spreading from the mouth
-// hex into the water. Drawn at any endpoint whose hex is Ocean or Coast.
+// Where a river meets the sea: it blooms into a small estuary pool at the mouth
+// hex — a soft circle in the river colour. Subtle, and reads as a mouth without a
+// hard glyph. Drawn at any endpoint whose hex is Ocean or Coast.
 function riverMouths(pts, hexes, w) {
   if (pts.length < 2) return '';
   let s = '';
   [0, pts.length - 1].forEach((ei) => {
     if (!isWaterHex(hexes[ei])) return;
-    const M = pts[ei], P = ei === 0 ? pts[1] : pts[pts.length - 2];
-    const dx = M.x - P.x, dy = M.y - P.y, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
-    const spread = RIVER_W[w] * SIZE * 2.6 + SIZE * 0.07;
-    const back = { x: M.x - ux * SIZE * 0.10, y: M.y - uy * SIZE * 0.10 };
-    const tx = M.x + ux * SIZE * 0.34, ty = M.y + uy * SIZE * 0.34;
-    const a = `${(tx + nx * spread).toFixed(1)} ${(ty + ny * spread).toFixed(1)}`;
-    const b = `${(tx - nx * spread).toFixed(1)} ${(ty - ny * spread).toFixed(1)}`;
-    s += `<path class="river-mouth" d="M ${back.x.toFixed(1)} ${back.y.toFixed(1)} L ${a} L ${b} Z"/>`;
+    const M = pts[ei];
+    const r = (RIVER_W[w] * SIZE * 1.25 + SIZE * 0.06).toFixed(1);
+    s += `<circle class="river-mouth" cx="${M.x.toFixed(1)}" cy="${M.y.toFixed(1)}" r="${r}"/>`;
   });
   return s;
 }
@@ -387,7 +383,7 @@ function drawRivers() {
     // rubber-band to the hovered hex, but only when it can actually connect
     if (S.riverHoverHex && !hx.includes(S.riverHoverHex) && isAdjacent(S.riverHoverHex, hx[hx.length - 1])) pts.push(hexCenterOf(S.riverHoverHex));
     s += riverSvg(pts, S.riverDraft.w, true);
-    pts.forEach((p, i) => { if (i < hx.length) s += `<circle class="river-node" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(SIZE * 0.13).toFixed(1)}"/>`; });
+    pts.forEach((p, i) => { if (i < hx.length) s += `<circle class="river-node" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${(SIZE * 0.09).toFixed(1)}"/>`; });
   }
   g.innerHTML = s;
 }
@@ -396,16 +392,25 @@ function riverSvg(pts, w, draft) {
   const sw = (RIVER_W[w] * SIZE).toFixed(2);
   return `<path class="river${draft ? ' draft' : ''}" d="${smoothPath(pts)}" style="stroke-width:${sw}"/>`;
 }
-// A Catmull-Rom spline through the points, emitted as cubic béziers (tension 1/6).
+// Chaikin corner-cutting: repeatedly replace each segment's endpoints with points
+// 1/4 and 3/4 along it, keeping the true endpoints. Unlike a Catmull-Rom spline it
+// never overshoots, so a river of adjacent hex centres (which zig-zags in offset
+// coordinates) smooths into a clean channel that hugs the corridor. Rendered as a
+// dense polyline — smooth at map scale.
 function smoothPath(pts) {
-  if (pts.length === 2) return `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)} L ${pts[1].x.toFixed(1)} ${pts[1].y.toFixed(1)}`;
-  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-    const c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
-    const c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
-    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  let p = pts;
+  for (let k = 0; k < 3 && p.length >= 3; k++) {
+    const out = [p[0]];
+    for (let i = 0; i < p.length - 1; i++) {
+      const a = p[i], b = p[i + 1];
+      out.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 });
+      out.push({ x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+    }
+    out.push(p[p.length - 1]);
+    p = out;
   }
+  let d = `M ${p[0].x.toFixed(1)} ${p[0].y.toFixed(1)}`;
+  for (let i = 1; i < p.length; i++) d += ` L ${p[i].x.toFixed(1)} ${p[i].y.toFixed(1)}`;
   return d;
 }
 

@@ -37,13 +37,15 @@
   zones. *(Textured fills / feathered coastlines still possible later.)*
 - [x] **R. River tool** — click a hex to drop a river in its middle, click an
   **adjacent** hex to connect; the ordered path winds hex-to-hex (each hex keeps
-  the neighbour it first joined), drawn as a semi-smooth Catmull-Rom curve through
-  the centres with a live rubber-band. **Three widths** (Stream / River / Major).
-  Click the end hex or Esc to finish, click a river to remove it; multiple rivers;
-  stored in `atlas.json` as `{w, hexes:[id…]}`. Undo/redo aware. **Terminates in
-  water:** connecting to an Ocean/Coast hex auto-finishes the river and draws a
-  delta at the mouth. *(Iterated from center-line → lattice-snap → this hex-path
-  model.)*
+  the neighbour it first joined). **Geometry:** the center path is smoothed with
+  **Chaikin corner-cutting** (never overshoots, de-zigzags the offset-hex path) so
+  it reads as a clean channel, not a worm. **Colour:** a palette `--river` teal in
+  the sea family (no clash). **Three widths** (Stream / River / Major), live
+  rubber-band. Click the end hex or Esc to finish, click a river to remove;
+  multiple rivers; stored as `{w, hexes:[id…]}` in `atlas.json`; undo-aware.
+  **Terminates in water:** connecting to an Ocean/Coast hex auto-finishes it and
+  blooms a small estuary pool at the mouth. *(Iterated center-line → lattice-snap →
+  hex-path → this Chaikin+palette pass.)*
 - [x] **18. Undo / redo** — Ctrl/Cmd-Z and Shift-Z (plus HUD ↶ ↷), covering
   paint, stamps, generate, edits, erase, rivers, markers, and grid/scale. Bounded
   debounced full-atlas snapshots (a drag or a burst of typing = one step); undo
