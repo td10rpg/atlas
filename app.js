@@ -208,7 +208,7 @@ function buildTools() {
     tool('terrain', 'Paint terrain — click to pick the brush') +
     tool('region', 'Paint region — click to pick the region') +
     tool('river', 'Draw a river — drag to trace; tap a river to remove it') +
-    tool('label', 'Label — click to place text; click a label to edit (clear it to delete)') +
+    tool('label', 'Label — click to place; click a label to edit (clear to delete); drag a label to move it') +
     '<div class="sep"></div>' +
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
@@ -934,13 +934,17 @@ function wirePointer() {
     if (mode === 'paint') paintHex(downId, true);
     if (mode === 'river') pointer.raw = [clientToBoard(e.clientX, e.clientY)];
     else if (mode === 'marquee') { const [bx, by] = clientToBoard(e.clientX, e.clientY); marquee = { x0: bx, y0: by, x1: bx, y1: by }; }
-    else mapEl.classList.add('grabbing');
+    else { if (mode === 'label') { const [bx, by] = clientToBoard(e.clientX, e.clientY); pointer.labelIdx = findLabelAt(bx, by); } mapEl.classList.add('grabbing'); }
   });
   mapEl.addEventListener('pointermove', (e) => {
     if (!pointer) return;
     if (pointer.mode === 'marquee') {
       const [bx, by] = clientToBoard(e.clientX, e.clientY);
       if (marquee) { marquee.x1 = bx; marquee.y1 = by; drawOverlay(); }
+    } else if (pointer.mode === 'label' && pointer.labelIdx >= 0) {
+      // dragging on an existing label moves it
+      const l = (S.atlas.labels || [])[pointer.labelIdx];
+      if (l) { const [bx, by] = clientToBoard(e.clientX, e.clientY); l.x = bx; l.y = by; drawLabels(); }
     } else if (pointer.mode === 'pan' || pointer.mode === 'label' || pointer.mode === 'measure') {
       pan(e.clientX - pointer.lx, e.clientY - pointer.ly);
     } else if (pointer.mode === 'river') {
@@ -962,7 +966,8 @@ function wirePointer() {
       if (pointer.moved) addRiver(pointer.raw);
       else { const [bx, by] = clientToBoard(e.clientX, e.clientY); deleteRiverAt(bx, by); }
     } else if (pointer.mode === 'label') {
-      if (!pointer.moved) openLabelEditor(e.clientX, e.clientY);
+      if (pointer.labelIdx >= 0 && pointer.moved) { persistConfig(); drawLabels(); recordChange(); toast('Label moved'); }
+      else if (!pointer.moved) openLabelEditor(e.clientX, e.clientY); // edit existing / place new
     } else if (pointer.mode === 'measure') {
       if (!pointer.moved && pointer.downId) measureClick(pointer.downId);
     } else if (pointer.mode === 'marquee') {
