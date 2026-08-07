@@ -147,9 +147,14 @@ async function boot() {
     return;
   }
 
-  // 3) Fresh start.
-  renderShell();
-  showLanding({});
+  // 3) Fresh start — land straight on the Hinterlands so a newcomer has a real,
+  //    fully-surveyed map to poke at instead of a blank prompt. It mirrors to
+  //    localStorage on first paint, so edits stick; "New folder" / "Open folder"
+  //    (top bar) save to real files or start something else once they're ready.
+  S.atlas = createStarterAtlas(true);
+  S.dir = null;
+  afterLoad();
+  toast('This is the Hinterlands — explore and edit it freely. Start your own any time: New folder, Random map, or a map image.');
 }
 
 function startInMemory(msg) {
@@ -1075,14 +1080,9 @@ function wirePointer() {
 // a stroke — so a click on a hex that already has that stamp removes it (backlog 11),
 // but dragging across hexes only ever adds. Canon hexes refuse all paint (backlog 2).
 function paintHex(id, allowToggle) {
-  // The party marker may sit on any hex, canon included; every other paint tool
-  // refuses canon hexes.
+  // Canon hexes are a starting point, not a cage — every tool paints them freely
+  // (the ★ just marks what shipped as canon). The marker is still its own case.
   if (S.tool === 'marker') { if (allowToggle) toggleParty(id); return; }
-  const existing = getHex(S.atlas, id);
-  if (existing && existing.canon) {
-    if (allowToggle) toast('Canon hex is locked — roll the WAG or edit notes in the inspector.');
-    return;
-  }
   switch (S.tool) {
     case 'terrain': mutate(id, (h) => { h.terrain = S.brushTerrain; applyTerrainIcon(h); }); break;
     case 'region': mutate(id, (h) => { h.region = S.brushRegion; }); break;
@@ -1131,8 +1131,6 @@ function mutate(id, fn) {
 }
 
 function eraseHex(id) {
-  const h = getHex(S.atlas, id);
-  if (h && h.canon) { toast('Canon hex is locked and can’t be cleared.'); return; }
   delete S.atlas.hexes[id];
   if (S.dir) store.removeHex(S.dir, id).catch(() => {});
   refreshHex(id);
@@ -1285,13 +1283,11 @@ function setSelection(ids) {
 }
 
 // ---- bulk apply to the multi-selection ------------------------------------
-// Mutate every selected hex (skipping canon), then persist + repaint each.
+// Mutate every selected hex, then persist + repaint each.
 function bulkApply(fn) {
   const ids = [...S.selection];
   let n = 0;
   ids.forEach((id) => {
-    const h = getHex(S.atlas, id);
-    if (h && h.canon) return;               // canon hexes are locked
     const hx = ensureHex(S.atlas, id);
     fn(hx);
     persistHex(id); refreshHex(id); n++;
@@ -1304,7 +1300,6 @@ function bulkClear() {
   let n = 0;
   ids.forEach((id) => {
     const h = getHex(S.atlas, id);
-    if (h && h.canon) return;
     if (!h) return;
     delete S.atlas.hexes[id];
     if (S.dir) store.removeHex(S.dir, id).catch(() => {});
@@ -1348,7 +1343,7 @@ function renderInspector() {
   }
   const id = S.selected;
   const h = getHex(S.atlas, id) || emptyHex(id);
-  const locked = !!h.canon; // canon hexes: notes + WAG rolls only (backlog 2)
+  const locked = false; // canon is a marker (★), not a lock — every field stays editable
   const wagLine = (key, tag) => {
     const has = !!h[key];
     const text = key === 'feature'
@@ -1363,7 +1358,7 @@ function renderInspector() {
   inspectorEl.innerHTML =
     `<div class="insp-head">` +
       `<div class="row"><span class="hid">Hex ${id}</span>` +
-      (h.canon ? `<span class="canon-tag">canon 🔒</span>` : '') +
+      (h.canon ? `<span class="canon-tag" title="Ships as canon — edit it freely; the ★ just marks the original">canon ★</span>` : '') +
       `<span class="terr">${h.terrain || 'unsurveyed'}</span></div>` +
       `<input class="insp-name" name="hexname" type="text" placeholder="Name this hex (optional)" value="${escapeHtml(h.name || '')}" ${locked ? 'disabled' : ''} />` +
     `</div>` +
@@ -1485,10 +1480,7 @@ function onInspectorClick(e) {
   const act = btn.dataset.action;
   if (act === 'edit-table') { openTableEditor(btn.dataset.table); return; } // global; allowed on canon too
   const h = getHex(S.atlas, id) || emptyHex(id);
-  const locked = !!h.canon;
-  // On a canon hex only the WAG survey lines and notes may change — refuse every
-  // structural action, including the place add/remove/re-roll (backlog 2).
-  if (locked && act !== 'generate' && act !== 'copy' && !(act === 'reroll' && ['weather', 'feature', 'sign', 'encounter', 'discovery'].includes(btn.dataset.field))) return;
+  const locked = false; // canon hexes are fully editable
   const idx = btn.dataset.idx != null ? +btn.dataset.idx : -1;
   switch (act) {
     case 'generate': {
@@ -1546,8 +1538,6 @@ function onInspectorChange(e) {
   if (t.dataset && t.dataset.bulk === 'region' && t.value) { bulkApply((hx) => { hx.region = t.value; }); t.value = ''; return; }
   if (!S.selected) return;
   const id = S.selected;
-  const cur = getHex(S.atlas, id);
-  if (cur && cur.canon) return; // region/terrain are fixed on canon hexes
   if (t.name === 'region') { const hx = ensureHex(S.atlas, id); hx.region = t.value; commit(id); }
   else if (t.name === 'terrain') { const hx = ensureHex(S.atlas, id); hx.terrain = t.value; applyTerrainIcon(hx); commit(id); }
 }
@@ -1557,8 +1547,6 @@ function onInspectorInput(e) {
   if (!S.selected) return;
   const id = S.selected;
   if (t.dataset && t.dataset.place) {
-    const cur = getHex(S.atlas, id);
-    if (cur && cur.canon) return; // places are fixed on canon hexes
     const hx = ensureHex(S.atlas, id);
     const arr = t.dataset.place === 'site' ? hx.sites : hx.settlements;
     const i = +t.dataset.idx;
@@ -1576,8 +1564,6 @@ function onInspectorInput(e) {
     persistHexDebounced(id);
     recordChange();
   } else if (t.name === 'hexname') {
-    const cur = getHex(S.atlas, id);
-    if (cur && cur.canon) return; // name is fixed on canon hexes
     const hx = ensureHex(S.atlas, id); hx.name = t.value;
     persistHexDebounced(id);
     clearTimeout(saveTimers['name-' + id]);
