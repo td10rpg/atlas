@@ -67,7 +67,7 @@ export const DEFAULT_REGIONS = [
   { name: 'Unassigned',              color: '#6b7280', prefer: NON_URBAN },
   { name: 'The River Settlements',   color: '#2f7d8f', prefer: ['Swamp or Wetlands', 'Swamp or Wetlands', 'Plains'] },
   { name: 'The Pine Expanse',        color: '#2f7d4f', prefer: ['Forest or Jungle', 'Forest or Jungle', 'Forest or Jungle', 'Hills or Mountains'] },
-  { name: 'The Bastion at Stonefall', color: '#9a6b3f', prefer: ['Hills or Mountains', 'Hills or Mountains', 'Hills or Mountains', 'Plains'] },
+  { name: 'The Bastion', color: '#9a6b3f', prefer: ['Hills or Mountains', 'Hills or Mountains', 'Hills or Mountains', 'Plains'] },
   { name: 'The Meltlands',           color: '#8f7d2f', prefer: ['Swamp or Wetlands', 'Swamp or Wetlands', 'Tundra', 'Plains'] },
   { name: 'The White March',         color: '#5a6f9a', prefer: ['Tundra', 'Tundra', 'Tundra', 'Hills or Mountains', 'Forest or Jungle'] },
 ];

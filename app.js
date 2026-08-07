@@ -491,14 +491,15 @@ function buildHex(col, row) {
   }
   if (S.showLabels) {
     top += `<text class="hex-label" x="${cx}" y="${(cy - SIZE * 0.58).toFixed(1)}" text-anchor="middle">${id}</text>`;
-    if (rec && rec.name) {
-      top += `<text class="hex-name" x="${cx}" y="${(cy + SIZE * 0.78).toFixed(1)}" text-anchor="middle">${escapeXml(clip(rec.name, 14))}</text>`;
-    }
   }
   // Site and settlement stamps sit symmetrically in the two upper corners, on a
   // dedicated layer drawn after EVERY grid line — otherwise a neighbouring hex's
-  // line (rendered later) paints over a stamp near the shared edge.
+  // line (rendered later) paints over a stamp near the shared edge. The hex NAME
+  // rides this same top layer so it reads over the grid, not under it.
   let stamps = '';
+  if (S.showLabels && rec && rec.name) {
+    stamps += `<text class="hex-name" x="${cx}" y="${(cy + SIZE * 0.78).toFixed(1)}" text-anchor="middle">${escapeXml(clip(rec.name, 14))}</text>`;
+  }
   if (rec && hasSite(rec)) {
     const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
     stamps += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', n);

@@ -162,6 +162,7 @@ function hexFromSeed(id, s) {
   h.region = s.region || 'Unassigned';
   h.terrain = s.terrain || '';
   h.icon = s.icon || '';
+  h.iconPinned = !!s.iconPinned; // a custom feature icon that shouldn't auto-revert
   h.canon = !!s.canon;
   h.settlements = Array.isArray(s.settlements)
     ? s.settlements.map((x) => ({ name: x.name || '', type: x.type || '', conflict: x.conflict || '' })) : [];
@@ -187,11 +188,17 @@ export function seedHinterlands() {
 export function createStarterAtlas(withHinterlands = true) {
   const a = createAtlas();
   if (withHinterlands && HINTERLANDS_SEED) {
-    a.name = HINTERLANDS_SEED.name || a.name;
-    a.cols = HINTERLANDS_SEED.cols || a.cols;
-    a.rows = HINTERLANDS_SEED.rows || a.rows;
-    a.hexMiles = HINTERLANDS_SEED.hexMiles || a.hexMiles;
+    const seed = HINTERLANDS_SEED;
+    a.name = seed.name || a.name;
+    a.cols = seed.cols || a.cols;
+    a.rows = seed.rows || a.rows;
+    a.hexMiles = seed.hexMiles || a.hexMiles;
     a.hexes = seedHinterlands();
+    // The seed also carries the atlas-level overlays authored on the canon map:
+    // its region set (names + colours), the rivers, and the map labels.
+    if (Array.isArray(seed.regions) && seed.regions.length) a.regions = normalizeRegions(seed.regions);
+    if (Array.isArray(seed.rivers)) a.rivers = normalizeRivers(seed.rivers);
+    if (Array.isArray(seed.labels)) a.labels = normalizeLabels(seed.labels);
   }
   return a;
 }
