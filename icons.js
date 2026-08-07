@@ -13,6 +13,13 @@ export const TERRAIN_ICONS = {
     label: 'Pines',
     svg: '<path fill="currentColor" d="M12 3l-4 6h2.4L6.5 15H10v3h4v-3h3.5L14 9h2.4z"/><path d="M11 18h2v3h-2z" fill="currentColor" stroke="none"/>',
   },
+  jungle: {
+    label: 'Jungle (palm)',
+    // Tropical palm — for the jungle side of a "Forest or Jungle" hex.
+    svg: '<path d="M12 9C8.5 7.5 5.5 8.5 4 11.5M12 9C15.5 7.5 18.5 8.5 20 11.5M12 9C9.5 6.5 7.5 6 6 7M12 9C14.5 6.5 16.5 6 18 7M12 9C11.6 6 11.8 5 12 4"/>' +
+      '<path fill="currentColor" stroke="none" d="M11 20C11.2 15 11.5 11 11.8 9.3L12.2 9.3C12.5 11 12.8 15 13 20Z"/>' +
+      '<circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/>',
+  },
   mountain: {
     label: 'Mountains',
     svg: '<path fill="currentColor" d="M2 20l6-12 3.6 7 2.4-4L22 20z"/>',
