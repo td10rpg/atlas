@@ -466,7 +466,16 @@ function buildHex(col, row) {
     const gs = SIZE * 0.64;
     const gx = cx - gs / 2;
     const gy = cy - gs / 2 + (hasParty ? SIZE * 0.22 : 0) - (rec.name ? 3 : 0);
-    glyph = `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
+    // The glyph takes a deeper shade of the hex's own REGION colour (not the terrain
+    // colour), so a mountain on a blue region reads blue — never a clashing red. On
+    // the light paper it darkens hard for contrast; on the dark map the near-full
+    // region hue already stands out against the translucent fill. No region → fall
+    // back to the terrain colour.
+    const inRegion = region && region.name !== 'Unassigned';
+    const glyphColor = inRegion
+      ? darken(region.color, isLightTheme() ? 0.5 : 0.12)
+      : (terrColor ? darken(terrColor, isLightTheme() ? 0.3 : 0) : 'var(--ink)');
+    glyph = `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${glyphColor}">` +
       terrainGlyph(rec.icon, { size: gs, stroke: 1.9 }) + `</g>`;
   } else if (isOcean) {
     // Ocean hexes get the water glyph by default, drawn low-opacity in a slightly
