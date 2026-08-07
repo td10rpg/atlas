@@ -77,31 +77,46 @@ const S = {
   showLabels: true,
   showGrid: true,       // hex outlines on/off (off = colours join as continuous zones)
   notesTab: 'write',
-  theme: 'auto',        // 'auto' | 'light' | 'dark' (backlog 14)
+  theme: 'light',       // 'light' | 'dark' — mirrors the parent site (backlog 14)
   view: { x: 0, y: 0, w: 100, h: 100 },
 };
 
-// ---- theme (auto / light / dark) ------------------------------------------
+// ---- theme (light / dark) -------------------------------------------------
+// Follows the parent Tiny d10 site: the SAME localStorage key ('theme'), the
+// same light default, and no OS/system following. The atlas is a same-origin
+// iframe, so the visitor's site-wide choice and the atlas stay in agreement.
 
-const THEME_KEY = 'td10-atlas-theme';
-const THEME_LABEL = { auto: '◐ Auto', light: '☀ Light', dark: '☾ Dark' };
+const THEME_KEY = 'theme';
+const THEME_LABEL = { light: '☀ Light', dark: '☾ Dark' };
+function readTheme() {
+  try { return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light'; } catch { return 'light'; }
+}
 function applyTheme() {
-  if (S.theme === 'auto') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = S.theme;
+  document.documentElement.dataset.theme = S.theme; // always 'light' or 'dark'
 }
 /** The effective theme is light — used to deepen the (otherwise washed-looking)
  *  translucent land fills over the light paper. */
 function isLightTheme() {
-  return S.theme === 'light' ||
-    (S.theme === 'auto' && matchMedia('(prefers-color-scheme: light)').matches);
+  return S.theme === 'light';
 }
 function cycleTheme() {
-  S.theme = S.theme === 'auto' ? 'light' : S.theme === 'light' ? 'dark' : 'auto';
+  S.theme = S.theme === 'dark' ? 'light' : 'dark';
   try { localStorage.setItem(THEME_KEY, S.theme); } catch { /* ignore */ }
   applyTheme();
   renderConn();
   if (S.atlas) renderMap(); // land fills deepen in light mode—rebuild to reflect it
 }
+// Stay in sync when the theme changes elsewhere on the origin (another tab, or
+// the parent site's toggle) — the storage event carries the shared key.
+window.addEventListener('storage', (e) => {
+  if (e.key !== THEME_KEY) return;
+  const next = readTheme();
+  if (next === S.theme) return;
+  S.theme = next;
+  applyTheme();
+  renderConn();
+  if (S.atlas) renderMap();
+});
 
 // ---- element refs ---------------------------------------------------------
 
@@ -119,7 +134,7 @@ $('#brand-mark').innerHTML = svgIcon(BRAND_SVG, { size: 30 });
 // ---- boot -----------------------------------------------------------------
 
 async function boot() {
-  try { S.theme = localStorage.getItem(THEME_KEY) || 'auto'; } catch { S.theme = 'auto'; }
+  S.theme = readTheme();
   applyTheme();
   buildTools();
   wireEvents();
@@ -208,7 +223,7 @@ function renderConn() {
     `<button class="btn small ghost" data-action="import-map" title="Import an image and convert it to native hexes">Map image</button>` +
     `<button class="btn small ghost" data-action="new-map" title="Start a blank grid to build a map from scratch (no terrain, no content)">New map</button>` +
     `<button class="btn small ghost" data-action="random" title="Generate a random terrain map (content stays blank)">Random map</button>` +
-    `<button class="btn small ghost" data-action="theme" title="Theme: auto / light / dark">${THEME_LABEL[S.theme]}</button>` +
+    `<button class="btn small ghost" data-action="theme" title="Theme: light / dark (shared with the site)">${THEME_LABEL[S.theme]}</button>` +
     `<button class="btn small ghost" data-action="save-image" title="Save the map as a PNG or SVG image">Save image</button>` +
     `<button class="btn small ghost" data-action="export">Export</button>` +
     `<button class="btn small ghost" data-action="import">Import</button>`;
