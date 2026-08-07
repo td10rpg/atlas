@@ -83,11 +83,18 @@ function applyTheme() {
   if (S.theme === 'auto') delete document.documentElement.dataset.theme;
   else document.documentElement.dataset.theme = S.theme;
 }
+/** The effective theme is light — used to deepen the (otherwise washed-looking)
+ *  translucent land fills over the light paper. */
+function isLightTheme() {
+  return S.theme === 'light' ||
+    (S.theme === 'auto' && matchMedia('(prefers-color-scheme: light)').matches);
+}
 function cycleTheme() {
   S.theme = S.theme === 'auto' ? 'light' : S.theme === 'light' ? 'dark' : 'auto';
   try { localStorage.setItem(THEME_KEY, S.theme); } catch { /* ignore */ }
   applyTheme();
   renderConn();
+  if (S.atlas) renderMap(); // land fills deepen in light mode — rebuild to reflect it
 }
 
 // ---- element refs ---------------------------------------------------------
@@ -185,16 +192,13 @@ function renderShell() {
 }
 
 function renderConn() {
-  const supported = store.supported();
+  // Folders were removed from the HUD (Import / Export cover the same ground); a
+  // connected folder can still exist from a prior session, so the status reflects it.
   const connected = !!S.dir;
-  const dot = connected ? 'on' : (supported ? 'off' : '');
-  const label = connected ? 'Folder connected' : (supported ? 'Not connected' : 'In-memory (no file access)');
+  const dot = connected ? 'on' : '';
+  const label = connected ? 'Folder connected' : 'Saved in this browser';
   connEl.innerHTML =
     `<span class="status"><span class="dot ${dot}"></span>${label}</span>` +
-    (supported && !globalThis.__HA_INMEMORY__
-      ? `<button class="btn small" data-action="new-folder">New folder</button>` +
-        `<button class="btn small" data-action="open-folder">Open folder</button>`
-      : '') +
     `<button class="btn small ghost" data-action="import-map" title="Import an image and convert it to native hexes">Map image</button>` +
     `<button class="btn small ghost" data-action="random" title="Generate a random terrain map (content stays blank)">Random map</button>` +
     `<button class="btn small ghost" data-action="theme" title="Theme: auto / light / dark">${THEME_LABEL[S.theme]}</button>` +
@@ -432,12 +436,15 @@ function buildHex(col, row) {
   // Ocean is a FLAT 0.5 (no jitter) so it composites to exactly --river — a river
   // drawn over the sea is then invisible (seamless), and rivers use that same
   // composited colour on land. Jitter here would leave a faint river ghost.
+  // In light mode the translucent land fills read washed over the light paper, so
+  // deepen them a notch (the palette is unchanged; ocean and dark mode are left be).
+  const ld = (c) => isLightTheme() ? darken(c, 0.14) : c;
   if (isOcean) { fill = terrColor; fillOp = '0.5'; }
   else if (region && region.name !== 'Unassigned') {
     const surveyed = !!(rec && rec.terrain);
-    fill = surveyed ? darken(region.color, 0.34) : region.color;
+    fill = ld(surveyed ? darken(region.color, 0.34) : region.color);
     fillOp = (0.44 + hexJitter(id) * 0.35).toFixed(3); // constant: only the hue darkens when surveyed
-  } else if (terrColor) { fill = terrColor; fillOp = (0.32 + hexJitter(id)).toFixed(3); }
+  } else if (terrColor) { fill = ld(terrColor); fillOp = (0.32 + hexJitter(id)).toFixed(3); }
   else { fill = 'var(--hex-blank)'; fillOp = '1'; }
 
   const cls = 'hex' + (rec && rec.canon ? ' canon' : '');
@@ -2152,11 +2159,12 @@ function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 
 // Darken a #rrggbb colour by blending each channel toward black by `amt` (0–1),
 // keeping the same hue — used to mark a surveyed hex a shade deeper than its region.
 function darken(hex, amt) {
-  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex);
-  if (!m) return hex;
-  const n = parseInt(m[1], 16), k = 1 - amt;
-  const r = Math.round(((n >> 16) & 255) * k), g = Math.round(((n >> 8) & 255) * k), b = Math.round((n & 255) * k);
-  return `rgb(${r},${g},${b})`;
+  const k = 1 - amt;
+  let r, g, b;
+  const hm = /^#?([0-9a-fA-F]{6})$/.exec(hex);
+  if (hm) { const n = parseInt(hm[1], 16); r = (n >> 16) & 255; g = (n >> 8) & 255; b = n & 255; }
+  else { const rm = /^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/.exec(hex); if (!rm) return hex; r = +rm[1]; g = +rm[2]; b = +rm[3]; }
+  return `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`;
 }
 // A stable per-hex value in [-0.05, +0.05] from its id — for a natural fill jitter.
 function hexJitter(id) {
