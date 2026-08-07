@@ -175,7 +175,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .hex polygon { transition: fill .12s; }               /* base = terrain fill (no stroke) */
 /* Rivers and the grid/label layer sit above the fills but must not eat clicks —
    the base .hex polygons are the hit targets. */
-#river-layer, #grid-layer, #stamp-layer, #label-layer, #overlay { pointer-events: none; }
+#river-layer, #glyph-layer, #grid-layer, #stamp-layer, #label-layer, #overlay { pointer-events: none; }
 /* Free labels — serif, with a background-coloured halo so they read over any
    terrain. Font size / stroke width are set on #label-layer per zoom (clamped). */
 .map-label { fill: var(--ink); stroke: var(--bg); paint-order: stroke; stroke-linejoin: round;
@@ -214,7 +214,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .marquee { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 .hex-top .hex-label { fill: var(--ink-dim); opacity: .6; font-size: 8px; font-family: var(--sans); }
 .hex-top .hex-name { fill: var(--ink); font-size: 8.5px; font-weight: 600; font-family: var(--serif); }
-.hex .glyph { pointer-events: none; }
+.glyph { pointer-events: none; }
 .hex-top.canon polygon { stroke-dasharray: none; }
 .hex-top .canon-star { pointer-events: none; }
 

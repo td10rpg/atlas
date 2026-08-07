@@ -430,11 +430,14 @@ function buildHex(col, row) {
   // this hex, drop the terrain glyph lower so the pin stacks above it rather than
   // burying it.
   const hasParty = (S.atlas.markers || []).some((m) => m && m.type === 'party' && m.hexId === id);
+  // The terrain glyph goes on its own layer ABOVE the rivers (so a river passes
+  // behind the icon, not over it) but below the grid/stamps.
+  let glyph = '';
   if (rec && rec.icon && !isOcean) {
     const gs = SIZE * 0.64;
     const gx = cx - gs / 2;
     const gy = cy - gs / 2 + (hasParty ? SIZE * 0.22 : 0) - (rec.name ? 3 : 0);
-    base += `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
+    glyph = `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
       terrainGlyph(rec.icon, { size: gs }) + `</g>`;
   }
 
@@ -462,6 +465,7 @@ function buildHex(col, row) {
   }
   return {
     base: `<g class="${cls}" data-id="${id}">${base}</g>`,
+    glyph: `<g class="hex-glyph" data-id="${id}">${glyph}</g>`,
     top: `<g class="hex-top" data-id="${id}">${top}</g>`,
     stamps: `<g class="hex-stamps" data-id="${id}">${stamps}</g>`,
   };
@@ -489,17 +493,17 @@ function badge(x, y, kind, count) {
 function renderMap() {
   const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
   mapEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-  let base = '', top = '', stamps = '';
+  let base = '', glyph = '', top = '', stamps = '';
   for (let col = 0; col < S.atlas.cols; col++) {
     for (let row = 0; row < S.atlas.rows; row++) {
       const p = buildHex(col, row);
-      base += p.base; top += p.top; stamps += p.stamps;
+      base += p.base; glyph += p.glyph; top += p.top; stamps += p.stamps;
     }
   }
-  // Layers, bottom to top: hex fills + terrain, rivers, the grid outlines +
-  // numbers, the stamps (over every line), free labels, then the overlay
-  // (selection + markers + draw preview).
-  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="grid-layer">${top}</g><g id="stamp-layer">${stamps}</g><g id="label-layer"></g><g id="overlay"></g>`;
+  // Layers, bottom to top: hex fills, rivers, terrain glyphs (over the rivers),
+  // the grid outlines + numbers, the stamps (over every line), free labels, then
+  // the overlay (selection + markers + draw preview).
+  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="glyph-layer">${glyph}</g><g id="grid-layer">${top}</g><g id="stamp-layer">${stamps}</g><g id="label-layer"></g><g id="overlay"></g>`;
   mapEl.classList.toggle('no-grid', !S.showGrid);
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
   drawRivers();
@@ -847,12 +851,14 @@ function clientToBoard(clientX, clientY) {
 
 function refreshHex(id) {
   const base = mapEl.querySelector(`#hex-layer .hex[data-id="${id}"]`);
+  const glyph = mapEl.querySelector(`#glyph-layer .hex-glyph[data-id="${id}"]`);
   const top = mapEl.querySelector(`#grid-layer .hex-top[data-id="${id}"]`);
   const stamps = mapEl.querySelector(`#stamp-layer .hex-stamps[data-id="${id}"]`);
   if (!base && !top) return;
   const { col, row } = parseId(id);
   const parts = buildHex(col, row);
   if (base) base.outerHTML = parts.base;
+  if (glyph) glyph.outerHTML = parts.glyph;
   if (top) top.outerHTML = parts.top;
   if (stamps) stamps.outerHTML = parts.stamps;
 }
@@ -894,7 +900,7 @@ function drawOverlay() {
 
 function markerGlyph(m, x, y) {
   const sz = SIZE * 0.62;
-  const color = m.type === 'party' ? '#d9694e' : 'var(--accent)';
+  const color = m.type === 'party' ? '#8f322c' : 'var(--accent)'; // deep, muted blood red (palette-consistent)
   // A filled pin with a white keyline + white dot so it reads on any terrain.
   return `<g transform="translate(${(x - sz / 2).toFixed(1)},${(y - sz).toFixed(1)})">` +
     `<g transform="scale(${(sz / 24).toFixed(3)})" fill="${color}" stroke="#ffffff" stroke-width="1.3" stroke-linejoin="round">` +
@@ -1771,9 +1777,9 @@ function buildExportSVG() {
   const sans = "system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
 
   // Reuse the on-screen builders over the full board (labels follow S.showLabels).
-  let base = '', top = '', stamps = '';
+  let base = '', glyph = '', top = '', stamps = '';
   for (let col = 0; col < S.atlas.cols; col++) {
-    for (let row = 0; row < S.atlas.rows; row++) { const p = buildHex(col, row); base += p.base; top += p.top; stamps += p.stamps; }
+    for (let row = 0; row < S.atlas.rows; row++) { const p = buildHex(col, row); base += p.base; glyph += p.glyph; top += p.top; stamps += p.stamps; }
   }
   const rivers = (S.atlas.rivers || []).map((l) => { const d = smoothPath(l); return d ? `<path class="river" d="${d}"/>` : ''; }).join('');
   const markers = (S.atlas.markers || []).map((m) => {
@@ -1812,7 +1818,7 @@ function buildExportSVG() {
     `</style>` +
     `<rect width="${W}" height="${H}" fill="${bg}"/>` +
     titleEl +
-    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${top}${stamps}${labels}${markers}</g>` +
+    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${glyph}${top}${stamps}${labels}${markers}</g>` +
     scaleBar +
   `</svg>`;
 }

@@ -11,15 +11,15 @@
 export const TERRAIN_ICONS = {
   forest: {
     label: 'Pines',
-    svg: '<path d="M12 3l-4 6h2.4L6.5 15H10v3h4v-3h3.5L14 9h2.4z"/><path d="M11 18h2v3h-2z" fill="currentColor" stroke="none"/>',
+    svg: '<path fill="currentColor" d="M12 3l-4 6h2.4L6.5 15H10v3h4v-3h3.5L14 9h2.4z"/><path d="M11 18h2v3h-2z" fill="currentColor" stroke="none"/>',
   },
   mountain: {
     label: 'Mountains',
-    svg: '<path d="M2 20l6-12 3.6 7 2.4-4L22 20z"/><path d="M6.2 13.6l1.8-1.1 1.5 1.2" fill="none"/><path d="M15.2 13.2l1.2-.9 1.1 1" fill="none"/>',
+    svg: '<path fill="currentColor" d="M2 20l6-12 3.6 7 2.4-4L22 20z"/>',
   },
   hills: {
     label: 'Hills',
-    svg: '<path d="M2 19c2.5 0 3.2-5 5.5-5S10.5 19 13 19"/><path d="M11 19c2 0 2.8-4 5-4s2.8 4 5 4"/>',
+    svg: '<path fill="currentColor" stroke="none" d="M1 20Q6.5 12 12 20Z"/><path fill="currentColor" stroke="none" d="M9.5 20Q15.5 12.5 22 20Z"/>',
   },
   plains: {
     label: 'Plains',
@@ -39,11 +39,11 @@ export const TERRAIN_ICONS = {
   },
   desert: {
     label: 'Barrens',
-    svg: '<circle cx="16.5" cy="7.5" r="2.6"/><path d="M2 17c2.5 0 3.2-3 5.5-3S10.5 17 13 17"/><path d="M11 17c2 0 2.8-2.5 5-2.5S18.8 17 21 17"/>',
+    svg: '<circle cx="16.5" cy="7.5" r="2.8" fill="currentColor" stroke="none"/><path d="M2 17c2.5 0 3.2-3 5.5-3S10.5 17 13 17"/><path d="M11 17c2 0 2.8-2.5 5-2.5S18.8 17 21 17"/>',
   },
   urban: {
     label: 'Stronghold',
-    svg: '<path d="M6 20V9l2-1.5V4h2v2l2-1.5L16 6V4h2v3.5L20 9v11z"/><path d="M11 20v-4h2v4" fill="none"/>',
+    svg: '<path fill="currentColor" d="M6 20V9l2-1.5V4h2v2l2-1.5L16 6V4h2v3.5L20 9v11z"/>',
   },
   unknown: {
     label: 'Unsurveyed',
