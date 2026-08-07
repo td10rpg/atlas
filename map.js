@@ -7,7 +7,7 @@
 // half-written folder degrades gracefully instead of crashing.
 
 import { DEFAULT_REGIONS, setRegions, getRegions, iconForTerrain, rollTerrain, rollTerrainForHex, generateHex, EDITABLE_TABLES, TERRAINS } from './wag.js';
-import { emptyHex, isPopulated, hexId, neighbors, hexCenter, parseHexId } from './hex.js';
+import { emptyHex, isPopulated, hexId, neighbors } from './hex.js';
 import { HINTERLANDS_SEED } from './hinterlands-seed.js';
 
 export const VERSION = 1;
@@ -153,38 +153,8 @@ export function loadHexes(atlas, records) {
 // as Ocean-or-Coast hexes, the continent partitioned into the five regions, and
 // the six canon towns placed. The towns are marked canon (a ★) but stay fully
 // editable — the map is a starting point, not a fixture. Land hexes carry a
-// region but no survey content — that's still yours to roll with the WAG.
-
-// The canon rivers. The source map draws no waterways, so these are authored from
-// the town lore: three tributaries meet at Three Branches Landing (1309) and run
-// north to the delta on the great bay, while two rivers join at Fort Caspar (1612)
-// — "the confluence of two rivers, atop a continental cliff" — and spill over the
-// cliff into the south-eastern sea, one of them fed from the Bastion's basalt
-// gorge. Each river is a chain of hex ids, source → sea; a mouth ends on a sea
-// hex so it meets the coast seamlessly.
-const HINTERLANDS_RIVERS = [
-  // Main stem: White March highlands, through the Landing, to the northern bay.
-  ['0808', '0909', '1009', '1109', '1209', '1309', '1308', '1207', '1206', '1205', '1204'],
-  // South tributary out of the Pine Expanse, up to the Landing.
-  ['1213', '1312', '1311', '1310', '1309'],
-  // East tributary off the Riverlands interior, into the Landing.
-  ['1411', '1410', '1309'],
-  // Fort Caspar's river: the Riverlands interior, through the Fort, over the cliff to the SE sea.
-  ['1510', '1511', '1611', '1612', '1713', '1714'],
-  // Fort Caspar's second river: down from the Bastion's basalt gorge.
-  ['1910', '1811', '1711', '1612'],
-];
-
-// Board radius the app renders at (app.js › SIZE). River points live in this same
-// board space, so a baked river lines up with the hexes exactly.
-const SEED_HEX_SIZE = 34;
-function riverPointsFromChain(chain) {
-  return chain.map((id) => {
-    const { col, row } = parseHexId(id);
-    const { x, y } = hexCenter(col, row, SEED_HEX_SIZE);
-    return [x, y];
-  });
-}
+// region but no survey content — that's still yours to roll with the WAG. Rivers
+// aren't seeded either — draw them in with the river tool.
 
 function hexFromSeed(id, s) {
   const h = emptyHex(id);
@@ -222,7 +192,6 @@ export function createStarterAtlas(withHinterlands = true) {
     a.rows = HINTERLANDS_SEED.rows || a.rows;
     a.hexMiles = HINTERLANDS_SEED.hexMiles || a.hexMiles;
     a.hexes = seedHinterlands();
-    a.rivers = HINTERLANDS_RIVERS.map(riverPointsFromChain);
   }
   return a;
 }
