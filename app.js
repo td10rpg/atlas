@@ -114,7 +114,7 @@ const connEl = $('#conn');
 const hudEl = $('#map-hud');
 const nameInput = $('#atlas-name');
 const importInput = $('#import-file');
-$('#brand-mark').innerHTML = svgIcon(BRAND_SVG, { size: 22 });
+$('#brand-mark').innerHTML = svgIcon(BRAND_SVG, { size: 30 });
 
 // ---- boot -----------------------------------------------------------------
 
