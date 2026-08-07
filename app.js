@@ -43,6 +43,7 @@ const TOOL_ICONS = {
   settlement: '<path d="M4 20V11l8-6 8 6v9z"/><path d="M9.5 20v-5h5v5"/>',
   site: '<path d="M7 21V4l10 3-10 3"/>',
   erase: '<path d="M4 15l7-7 7 7-4 4H8z"/><path d="M8 21h10"/>',
+  icon: '<path d="M4 4h8l8 8-8 8-8-8z"/><circle cx="8.5" cy="8.5" r="1.6" fill="currentColor" stroke="none"/>',
   marker: '<path d="M12 21s6-5.7 6-11a6 6 0 0 0-12 0c0 5.3 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',
   river: '<path d="M3 7c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/><path d="M3 15c3 0 3 3 6 3s3-3 6-3 3 3 6 3"/>',
   label: '<path d="M4 7h16M4 12h10M4 17h13"/>',
@@ -66,6 +67,7 @@ const S = {
   tool: 'inspect',
   brushTerrain: 'Forest or Jungle',
   brushRegion: 'The Pine Expanse',
+  brushIcon: 'mountain',   // the feature-icon brush (paints a hex's glyph, not its terrain)
   showLabels: true,
   showGrid: true,       // hex outlines on/off (off = colours join as continuous zones)
   notesTab: 'write',
@@ -199,17 +201,23 @@ function renderConn() {
 // ---- tools rail -----------------------------------------------------------
 
 function buildTools() {
-  const tool = (key, title) =>
-    `<button class="tool ${S.tool === key ? 'active' : ''}" data-tool="${key}" title="${title}">` +
-    svgIcon(TOOL_ICONS[key], { size: 22 }) +
-    (key === 'terrain' ? `<span class="swatch" style="background:${TERRAIN_COLOR[S.brushTerrain]}"></span>` : '') +
-    (key === 'region' ? `<span class="swatch" style="background:${(S.atlas.regions || []).find((r) => r.name === S.brushRegion)?.color}"></span>` : '') +
-    `</button>`;
+  const tool = (key, title) => {
+    // The icon tool shows the current feature-icon glyph; others show their tool icon.
+    const inner = (key === 'icon' && TERRAIN_ICONS[S.brushIcon])
+      ? terrainGlyph(S.brushIcon, { size: 22 })
+      : svgIcon(TOOL_ICONS[key], { size: 22 });
+    return `<button class="tool ${S.tool === key ? 'active' : ''}" data-tool="${key}" title="${title}">` +
+      inner +
+      (key === 'terrain' ? `<span class="swatch" style="background:${TERRAIN_COLOR[S.brushTerrain]}"></span>` : '') +
+      (key === 'region' ? `<span class="swatch" style="background:${(S.atlas.regions || []).find((r) => r.name === S.brushRegion)?.color}"></span>` : '') +
+      `</button>`;
+  };
   toolsEl.innerHTML =
     tool('inspect', 'Inspect / select (drag to pan)') +
     '<div class="sep"></div>' +
     tool('terrain', 'Paint terrain — click to pick the brush') +
     tool('region', 'Paint region — click to pick the region') +
+    tool('icon', 'Feature icon — click to pick; paint a hex\'s icon without changing its terrain') +
     tool('river', 'Draw a river — drag to trace; tap a river to remove it') +
     tool('label', 'Label — click to place; click a label to edit (clear to delete); drag a label to move it') +
     '<div class="sep"></div>' +
@@ -239,16 +247,23 @@ function openBrushMenu(kind, anchorBtn) {
   closeBrushMenu();
   const items = kind === 'terrain'
     ? TERRAINS.map((t) => ({ v: t.key, label: t.key, color: TERRAIN_COLOR[t.key] }))
-    : (S.atlas.regions || []).map((r) => ({ v: r.name, label: r.name, color: r.color }));
-  const cur = kind === 'terrain' ? S.brushTerrain : S.brushRegion;
+    : kind === 'region'
+      ? (S.atlas.regions || []).map((r) => ({ v: r.name, label: r.name, color: r.color }))
+      : [{ v: 'auto', label: 'Auto (match terrain)', glyph: '' }, { v: 'none', label: 'No icon', glyph: '' }]
+        .concat(Object.keys(TERRAIN_ICONS).map((k) => ({ v: k, label: TERRAIN_ICONS[k].label, glyph: k })));
+  const cur = kind === 'terrain' ? S.brushTerrain : kind === 'region' ? S.brushRegion : S.brushIcon;
+  const head = kind === 'terrain' ? 'Terrain brush' : kind === 'region' ? 'Region brush' : 'Feature icon';
+  const swatch = (o) => (kind === 'icon')
+    ? `<span class="swatch glyph-sw">${o.glyph && TERRAIN_ICONS[o.glyph] ? terrainGlyph(o.glyph, { size: 16 }) : ''}</span>`
+    : `<span class="swatch" style="background:${o.color}"></span>`;
   const el = document.createElement('div');
   el.id = 'brush-menu'; el.className = 'brush-menu';
   el.setAttribute('role', 'menu');
   el.innerHTML =
-    `<div class="brush-menu-head">${kind === 'terrain' ? 'Terrain brush' : 'Region brush'}</div>` +
+    `<div class="brush-menu-head">${head}</div>` +
     items.map((o) =>
       `<button class="brush-opt${o.v === cur ? ' active' : ''}" role="menuitemradio" aria-checked="${o.v === cur}" data-brush="${escapeHtml(o.v)}">` +
-      `<span class="swatch" style="background:${o.color}"></span><span class="brush-opt-label">${escapeHtml(o.label)}</span></button>`).join('') +
+      `${swatch(o)}<span class="brush-opt-label">${escapeHtml(o.label)}</span></button>`).join('') +
     (kind === 'region' ? `<button class="brush-opt brush-edit" data-brush-edit="1"><span class="brush-opt-label">✎ Edit regions…</span></button>` : '');
   document.body.appendChild(el);
   // Anchor to the right of the tool button, clamped into the viewport.
@@ -261,9 +276,11 @@ function openBrushMenu(kind, anchorBtn) {
   el.addEventListener('click', (e) => {
     if (e.target.closest('[data-brush-edit]')) { closeBrushMenu(); openRegionEditor(); return; }
     const b = e.target.closest('[data-brush]'); if (!b) return;
-    if (kind === 'terrain') S.brushTerrain = b.dataset.brush; else S.brushRegion = b.dataset.brush;
+    if (kind === 'terrain') S.brushTerrain = b.dataset.brush;
+    else if (kind === 'region') S.brushRegion = b.dataset.brush;
+    else S.brushIcon = b.dataset.brush;
     closeBrushMenu();
-    buildTools(); // refresh the swatch on the tool button
+    buildTools(); // refresh the swatch / glyph on the tool button
   });
   // Defer so the opening click doesn't immediately close it.
   setTimeout(() => document.addEventListener('pointerdown', onBrushOutside, true), 0);
@@ -1069,6 +1086,12 @@ function paintHex(id, allowToggle) {
   switch (S.tool) {
     case 'terrain': mutate(id, (h) => { h.terrain = S.brushTerrain; applyTerrainIcon(h); }); break;
     case 'region': mutate(id, (h) => { h.region = S.brushRegion; }); break;
+    case 'icon': mutate(id, (h) => {
+      // Set the hex's feature icon independent of its terrain (colour).
+      if (S.brushIcon === 'auto') { h.iconPinned = false; applyTerrainIcon(h); }
+      else if (S.brushIcon === 'none') { h.icon = ''; h.iconPinned = true; }
+      else { h.icon = S.brushIcon; h.iconPinned = true; }
+    }); break;
     case 'settlement': mutate(id, (h) => stampPlace(h, 'settlements', allowToggle)); break;
     case 'site': mutate(id, (h) => stampPlace(h, 'sites', allowToggle)); break;
     case 'erase': eraseHex(id); break;
@@ -1576,9 +1599,9 @@ function wireEvents() {
     const t = e.target.closest('.tool');
     if (!t) return;
     const key = t.dataset.tool;
-    // Terrain / region carry a brush: clicking the tool opens a picker anchored to
-    // the button. Clicking the already-active brush tool toggles the menu.
-    if (key === 'terrain' || key === 'region') {
+    // Terrain / region / icon carry a brush: clicking the tool opens a picker
+    // anchored to the button. Clicking the already-active brush tool toggles it.
+    if (key === 'terrain' || key === 'region' || key === 'icon') {
       const wasActive = S.tool === key;
       const menuWasOpen = brushMenuKind === key;
       setTool(key); // rebuilds the rail, so re-query the button afterwards

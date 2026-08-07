@@ -69,7 +69,7 @@ export function hexDistance(colA, rowA, colB, rowB) {
 //   settlement: { name, type, conflict }
 
 export const HEX_FIELDS = [
-  'id', 'name', 'region', 'terrain', 'icon',
+  'id', 'name', 'region', 'terrain', 'icon', 'iconPinned',
   'weather', 'feature', 'featureDesc', 'sign', 'encounter', 'discovery',
   'canon', 'generatedAt',
 ];
@@ -103,7 +103,8 @@ export function hasSettlement(h) { return !!(h && Array.isArray(h.settlements) &
 export function isPopulated(h) {
   if (!h) return false;
   return !!(h.terrain || h.weather || h.feature || h.notes || h.name ||
-    hasSite(h) || hasSettlement(h) || (h.region && h.region !== 'Unassigned'));
+    hasSite(h) || hasSettlement(h) || (h.region && h.region !== 'Unassigned') ||
+    (h.iconPinned && h.icon));
 }
 
 // ---- serialize ------------------------------------------------------------
@@ -127,7 +128,7 @@ export function serializeHex(h) {
 
   const fm = ['---'];
   HEX_FIELDS.forEach((k) => {
-    if (k === 'canon') fm.push(`${k}: ${h.canon ? 'true' : 'false'}`);
+    if (k === 'canon' || k === 'iconPinned') fm.push(`${k}: ${h[k] ? 'true' : 'false'}`);
     else fm.push(`${k}: ${yamlScalar(h[k])}`);
   });
   fm.push(`factions: ${yamlList(h.factions)}`);
@@ -219,6 +220,7 @@ export function parseHex(text, fallbackId) {
     const key = kv[1]; const raw = kv[2];
     if (key === 'factions') rec.factions = parseList(raw);
     else if (key === 'canon') rec.canon = /^true$/i.test(raw.trim());
+    else if (key === 'iconPinned') rec.iconPinned = /^true$/i.test(raw.trim());
     else if (key === 'sites') rec.sites = parseJsonArray(raw).map(siteObj);
     else if (key === 'settlements') rec.settlements = parseJsonArray(raw).map(settlementObj);
     else if (/^(site|settlement)[A-Z]/.test(key)) legacy[key] = unquote(raw);

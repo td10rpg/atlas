@@ -150,6 +150,8 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .brush-opt:hover { background: var(--panel-2); border-color: var(--line); }
 .brush-opt.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .brush-opt .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,.3); flex: 0 0 auto; }
+.brush-opt .swatch.glyph-sw { width: 20px; height: 18px; border: none; background: transparent; display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
+.brush-opt .swatch.glyph-sw .ico { width: 18px; height: 18px; }
 .brush-opt-label { white-space: nowrap; }
 .brush-edit { border-top: 1px solid var(--line); border-radius: 0; margin-top: 4px; color: var(--accent); }
 
