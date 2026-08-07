@@ -234,7 +234,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .map-hud .btn.small { padding: 2px 7px; }
 .map-hud .sep2 { opacity: .4; }
 .map-hud label { display: inline-flex; align-items: center; gap: 4px; }
-.map-hud select, .map-hud input[type=number] {
+.map-hud select, .map-hud input[type=number], .map-hud input[type=text] {
   background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
   border-radius: 5px; padding: 2px 4px; font-size: 12px;
 }

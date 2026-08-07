@@ -1922,7 +1922,7 @@ function showLanding(opts) {
   }
   card.innerHTML =
     `<div class="landing-card">` +
-      `<h1>atlas</h1>` +
+      `<h1>ATLAS</h1>` +
       `<p class="lede">A little hex-atlas maker for Tiny&nbsp;d10. Survey hexes with the <b>Worldwide Adventure Generator</b>, ` +
       `let terrain set each hex's icon, and keep your notes in Markdown. Your map is a real folder of files you own — ` +
       `one Markdown stat-block per hex.</p>` +
