@@ -35,8 +35,11 @@ export const TERRAIN_ICONS = {
   },
   tundra: {
     label: 'Tundra',
-    // A bold crystalline ice-star (six-point snowflake), filled for presence.
-    svg: '<path fill="currentColor" stroke="none" stroke-linejoin="round" d="M12 2.6l1.7 5.2 5.4-1 -3.3 4.5 3.3 4.5 -5.4-1 -1.7 5.2 -1.7-5.2 -5.4 1 3.3-4.5 -3.3-4.5 5.4 1z"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
+    // A proper dendritic snowflake: six arms, each with an outward fork.
+    svg: '<path d="M12 3V21M4.2 7.5 19.8 16.5M19.8 7.5 4.2 16.5' +
+      'M9.9 4.6 12 6.4 14.1 4.6M9.9 19.4 12 17.6 14.1 19.4' +
+      'M6.6 6.5 7.2 9.2 4.5 10.1M17.4 17.5 16.8 14.8 19.5 13.9' +
+      'M19.5 10.1 16.8 9.2 17.4 6.5M4.5 13.9 7.2 14.8 6.6 17.5"/>',
   },
   desert: {
     label: 'Barrens',
