@@ -916,6 +916,13 @@ function clientToBoard(clientX, clientY) {
   return [v.x + ((clientX - rect.left) / rect.width) * v.w, v.y + ((clientY - rect.top) / rect.height) * v.h];
 }
 
+/** Clamp a board point into the grid's canvas bounds, so the river tool can't
+ *  color offgrid (out in the empty void you can pan/zoom to). */
+function clampToBoard([x, y]) {
+  const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
+  return [Math.max(0, Math.min(w, x)), Math.max(0, Math.min(h, y))];
+}
+
 function refreshHex(id) {
   const base = mapEl.querySelector(`#hex-layer .hex[data-id="${id}"]`);
   const glyph = mapEl.querySelector(`#glyph-layer .hex-glyph[data-id="${id}"]`);
@@ -1043,7 +1050,7 @@ function wirePointer() {
       : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
     pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId };
     if (mode === 'paint') paintHex(downId, true);
-    if (mode === 'river') pointer.raw = [clientToBoard(e.clientX, e.clientY)];
+    if (mode === 'river') pointer.raw = [clampToBoard(clientToBoard(e.clientX, e.clientY))];
     else if (mode === 'marquee') { const [bx, by] = clientToBoard(e.clientX, e.clientY); marquee = { x0: bx, y0: by, x1: bx, y1: by }; }
     else { if (mode === 'label') { const [bx, by] = clientToBoard(e.clientX, e.clientY); pointer.labelIdx = findLabelAt(bx, by); } mapEl.classList.add('grabbing'); }
   });
@@ -1059,7 +1066,7 @@ function wirePointer() {
     } else if (pointer.mode === 'pan' || pointer.mode === 'label' || pointer.mode === 'measure') {
       pan(e.clientX - pointer.lx, e.clientY - pointer.ly);
     } else if (pointer.mode === 'river') {
-      pointer.raw.push(clientToBoard(e.clientX, e.clientY));
+      pointer.raw.push(clampToBoard(clientToBoard(e.clientX, e.clientY)));
       setRiverPreview(riverFromRaw(pointer.raw));
     } else {
       const hex = document.elementFromPoint(e.clientX, e.clientY);
