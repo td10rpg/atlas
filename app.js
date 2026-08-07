@@ -206,6 +206,7 @@ function renderConn() {
   connEl.innerHTML =
     `<span class="status"><span class="dot ${dot}"></span>${label}</span>` +
     `<button class="btn small ghost" data-action="import-map" title="Import an image and convert it to native hexes">Map image</button>` +
+    `<button class="btn small ghost" data-action="new-map" title="Start a blank grid to build a map from scratch (no terrain, no content)">New map</button>` +
     `<button class="btn small ghost" data-action="random" title="Generate a random terrain map (content stays blank)">Random map</button>` +
     `<button class="btn small ghost" data-action="theme" title="Theme: auto / light / dark">${THEME_LABEL[S.theme]}</button>` +
     `<button class="btn small ghost" data-action="save-image" title="Save the map as a PNG or SVG image">Save image</button>` +
@@ -1653,6 +1654,7 @@ function wireEvents() {
     if (a === 'export') exportBundle();
     if (a === 'import') importInput.click();
     if (a === 'random') randomMap();
+    if (a === 'new-map') newMap();
     if (a === 'import-map') pickMapImage();
     if (a === 'save-image') saveImage();
   });
@@ -1737,6 +1739,24 @@ function hideBusy() {
 // hidden and would hang generation in a backgrounded window).
 const nextFrame = () => new Promise((r) => setTimeout(r, 16));
 
+async function newMap() {
+  const ok = await confirmModal({
+    title: `Start a blank ${S.atlas.cols}×${S.atlas.rows} map?`,
+    body: 'This replaces the current atlas with an empty grid—no terrain, no content—ready to build from scratch.',
+    choices: [{ value: 'ok', label: 'New map', primary: true, danger: true }],
+  });
+  if (ok !== 'ok') return;
+  showBusy();
+  await nextFrame();
+  const a = createAtlas('Untitled atlas');
+  a.cols = S.atlas.cols;
+  a.rows = S.atlas.rows;
+  S.atlas = a;
+  afterLoad();
+  if (S.dir) { try { await store.saveAll(S.dir, S.atlas, busyProgress); } catch (err) { toast('Could not save: ' + err.message, true); } }
+  hideBusy();
+  toast('Blank map created.');
+}
 async function randomMap() {
   const ok = await confirmModal({
     title: `Generate a random ${S.atlas.cols}×${S.atlas.rows} map?`,
