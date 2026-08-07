@@ -35,7 +35,8 @@ export const TERRAIN_ICONS = {
   },
   tundra: {
     label: 'Tundra',
-    svg: '<path d="M12 3v18M4.2 7.5L19.8 16.5M19.8 7.5L4.2 16.5"/><path d="M12 6.4l-1.9 1.1M12 6.4l1.9 1.1M12 17.6l-1.9-1.1M12 17.6l1.9-1.1M6 9.2l.2 2.2M6 9.2l2.1-.2M18 9.2l-.2 2.2M18 9.2l-2.1-.2"/>',
+    // A bold crystalline ice-star (six-point snowflake), filled for presence.
+    svg: '<path fill="currentColor" stroke="none" stroke-linejoin="round" d="M12 2.6l1.7 5.2 5.4-1 -3.3 4.5 3.3 4.5 -5.4-1 -1.7 5.2 -1.7-5.2 -5.4 1 3.3-4.5 -3.3-4.5 5.4 1z"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
   },
   desert: {
     label: 'Barrens',
@@ -43,7 +44,8 @@ export const TERRAIN_ICONS = {
   },
   urban: {
     label: 'Stronghold',
-    svg: '<path fill="currentColor" d="M6 20V9l2-1.5V4h2v2l2-1.5L16 6V4h2v3.5L20 9v11z"/>',
+    // A battlemented tower with an arched door (door cut out via even-odd fill).
+    svg: '<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M8 20V6h2v1.6h1V6h2v1.6h1V6h2v14zM10.4 20v-4.6a1.6 1.6 0 0 1 3.2 0V20z"/>',
   },
   unknown: {
     label: 'Unsurveyed',

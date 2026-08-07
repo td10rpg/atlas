@@ -439,6 +439,12 @@ function buildHex(col, row) {
     const gy = cy - gs / 2 + (hasParty ? SIZE * 0.22 : 0) - (rec.name ? 3 : 0);
     glyph = `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${terrColor || 'var(--ink)'}">` +
       terrainGlyph(rec.icon, { size: gs }) + `</g>`;
+  } else if (isOcean) {
+    // Ocean hexes get the water glyph by default, drawn low-opacity in a slightly
+    // deeper shade of the sea so it reads as gentle wave texture, not visual noise.
+    const gs = SIZE * 0.7, gx = cx - gs / 2, gy = cy - gs / 2;
+    glyph = `<g class="glyph" transform="translate(${gx.toFixed(1)},${gy.toFixed(1)})" style="color:${darken(terrColor, 0.18)}" opacity="0.4">` +
+      terrainGlyph('coast', { size: gs }) + `</g>`;
   }
 
   let top = `<polygon points="${pts}" fill="none" stroke="${stroke}"/>`;
