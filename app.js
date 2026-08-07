@@ -664,7 +664,7 @@ function measureText() {
   const A = parseId(measure.a), B = parseId(measure.b);
   const d = hexDistance(A.col, A.row, B.col, B.row);
   const miles = d * (S.atlas.hexMiles || 6);
-  const days = d / 4; // WAG wilderness pace ≈ 4 hexes/day
+  const days = miles / 24; // wilderness pace ≈ 24 mi/day (the classic 4 six-mile hexes) — scale-independent
   const dv = Math.round(days * 10) / 10;
   const dayStr = d === 0 ? 'same hex' : days < 1 ? 'under a day' : `≈ ${dv} ${dv === 1 ? 'day' : 'days'}`;
   return `${d} hex${d === 1 ? '' : 'es'} · ${miles} mi · ${dayStr}`;
