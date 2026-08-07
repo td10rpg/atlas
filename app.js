@@ -1384,13 +1384,7 @@ function renderInspector() {
       placesBlock(h, 'settlement', locked) +
       placesBlock(h, 'site', locked) +
 
-      (locked ? '' :
-        `<div class="field"><span class="field-label">Icon <button class="btn small ghost" data-action="icon-auto" title="Match the terrain">auto</button></span>` +
-        `<div class="icon-picker">` +
-          Object.keys(TERRAIN_ICONS).map((k) =>
-            `<button class="icon-opt ${h.icon === k ? 'active' : ''}" data-action="icon" data-icon="${k}" title="${TERRAIN_ICONS[k].label}">${terrainGlyph(k, { size: 24 })}</button>`).join('') +
-        `</div></div>`) +
-
+      // Feature icon lives on the left-rail Icon tool now — no per-hex picker here.
       notesBlock(h) +
 
       `<div class="danger-row">` +
@@ -1510,8 +1504,6 @@ function onInspectorClick(e) {
     case 'add-settlement-blank': { ensureHex(S.atlas, id).settlements.push(emptySettlement()); commit(id); break; }
     case 'rm-settlement': { const a = ensureHex(S.atlas, id).settlements; if (idx >= 0) a.splice(idx, 1); commit(id); break; }
     case 'reroll-settlement': { const s = ensureHex(S.atlas, id).settlements[idx]; if (s) Object.assign(s, rollSettlementFields()); commit(id); break; }
-    case 'icon': { const hx = ensureHex(S.atlas, id); hx.icon = btn.dataset.icon; hx.iconPinned = true; commit(id); break; }
-    case 'icon-auto': { const hx = ensureHex(S.atlas, id); hx.iconPinned = false; applyTerrainIcon(hx); commit(id); break; }
     case 'copy': navigator.clipboard?.writeText(serializeHex(h)).then(() => toast('Stat-block copied')).catch(() => toast('Copy failed', true)); break;
     case 'clear':
       confirmModal({
