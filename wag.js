@@ -171,7 +171,7 @@ export const SIGN = [
   { lo: 3, hi: 3,   name: 'Fresh tracks crossing the party’s path', desc: '' },
   { lo: 4, hi: 4,   name: 'A sudden, unnatural silence', desc: '' },
   { lo: 5, hi: 5,   name: 'A corpse (animal or person) with a clue', desc: '' },
-  { lo: 6, hi: 6,   name: 'A messenger — wounded, terrified, or lost', desc: '' },
+  { lo: 6, hi: 6,   name: 'A messenger – wounded, terrified, or lost', desc: '' },
   { lo: 7, hi: 7,   name: 'A dropped item (map piece, charm, letter, token)', desc: '' },
   { lo: 8, hi: 8,   name: 'A warning sign (runes, skulls, taboo marker)', desc: '' },
   { lo: 9, hi: 9,   name: 'A suspicious guide mark (breadcrumbs into trouble)', desc: '' },
@@ -211,8 +211,8 @@ const ENC_GENERIC = [
 const ENC_TERRAIN = {
   'Plains': [
     'Territorial predator', 'Territorial predator', 'Monster or aberration', 'Monster or aberration',
-    'Grass fire — slow or fast-moving', 'Survivor(s) with a warning', 'Broken wagon or supply cache',
-    'Nomad camp — evil, neutral, or good', 'Migrating herd (valuable; dangerous to spook)',
+    'Grass fire – slow or fast-moving', 'Survivor(s) with a warning', 'Broken wagon or supply cache',
+    'Nomad camp – evil, neutral, or good', 'Migrating herd (valuable; dangerous to spook)',
     'Riders at speed, or scouts watching from afar',
   ],
   'Forest or Jungle': [
@@ -320,7 +320,7 @@ export const SITE_CONDITION = [
 ];
 
 export const OPPOSITION = [
-  { lo: 1, hi: 1,   name: 'No occupants — just hazards', desc: '' },
+  { lo: 1, hi: 1,   name: 'No occupants – just hazards', desc: '' },
   { lo: 2, hi: 2,   name: 'Vermin or animal infested', desc: '' },
   { lo: 3, hi: 3,   name: 'Bandits or scavengers', desc: '' },
   { lo: 4, hi: 4,   name: 'Cult, sect, or ritualists', desc: '' },
@@ -391,10 +391,10 @@ function weightedRow(rows) {
   for (let i = 0; i < rows.length; i++) { r -= w[i]; if (r <= 0) return rows[i]; }
   return rows[rows.length - 1];
 }
-/** Roll a banded table by key (honouring overrides) and return "Name — desc". */
+/** Roll a banded table by key (honouring overrides) and return "Name – desc". */
 function rollLine(key) {
   const row = weightedRow(effTable(key));
-  return row.desc ? `${row.name} — ${row.desc}` : row.name;
+  return row.desc ? `${row.name} – ${row.desc}` : row.name;
 }
 
 export function generateHex(terrainKey) {
@@ -414,10 +414,10 @@ export function generateHex(terrainKey) {
 }
 
 function encounterText(enc) {
-  if (!enc.parties.length) return `${enc.check.name} — ${enc.check.detail}`;
+  if (!enc.parties.length) return `${enc.check.name} – ${enc.check.detail}`;
   const who = enc.parties.join('; and ');
   const tag = enc.check.disadvantage ? ' (the party at a disadvantage)' : '';
-  return `${enc.check.name}${tag} — ${who}.`;
+  return `${enc.check.name}${tag} – ${who}.`;
 }
 
 // A place is { name, ...rolled fields }. The name is the author's; rollSiteFields /

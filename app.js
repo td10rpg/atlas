@@ -1370,7 +1370,7 @@ function renderInspector() {
   const wagLine = (key, tag) => {
     const has = !!h[key];
     const text = key === 'feature'
-      ? (has ? `${escapeHtml(h.feature)}${h.featureDesc ? ` — <em>${escapeHtml(h.featureDesc)}</em>` : ''}` : '—')
+      ? (has ? `${escapeHtml(h.feature)}${h.featureDesc ? ` – <em>${escapeHtml(h.featureDesc)}</em>` : ''}` : '—')
       : (has ? escapeHtml(h[key]) : '—');
     return `<div class="wagline ${has ? '' : 'empty'}">` +
       `<div class="wl-head">${tableTag(tag, TABLE_FOR[key])}` +

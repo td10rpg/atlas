@@ -146,7 +146,7 @@ export function serializeHex(h) {
   if (h.region) body.push(`**Region:** ${h.region}`);
   if (h.terrain) body.push(`**Terrain:** ${h.terrain}`);
   if (h.weather) body.push(`**Weather (Table A):** ${h.weather}`);
-  if (h.feature) body.push(`**Feature (Table B):** ${h.feature}${h.featureDesc ? ` — *${h.featureDesc}*` : ''}`);
+  if (h.feature) body.push(`**Feature (Table B):** ${h.feature}${h.featureDesc ? ` – *${h.featureDesc}*` : ''}`);
   if (h.sign) body.push(`**Sign or Omen (Table C):** ${h.sign}`);
   if (h.encounter) body.push(`**Encounter (Tables D & E):** ${h.encounter}`);
   if (h.discovery) body.push(`**Discovery (Table F):** ${h.discovery}`);
