@@ -35,8 +35,8 @@ const TERRAIN_COLOR = {
   'Desert': '#d9c07f', 'Urban': '#8f7a6a',
 };
 
-// A d10 (the Tiny d10 mark): a faceted die — pentagon body, top face fold, centre ridge.
-const BRAND_SVG = '<path d="M12 2.2 20 9 16.5 20 7.5 20 4 9Z"/><path d="M4 9 12 12.5 20 9M12 2.2V20"/>';
+// The brand mark is the official Tiny d10 logo (assets/td10-logo.png), set in the
+// markup — see index.html › #brand-mark.
 const TOOL_ICONS = {
   inspect: '<path d="M5 3l14 8-6 1.6L10 19z"/>',
   terrain: '<path d="M3 21l6-2 9-9-4-4-9 9z"/><path d="M13.5 6.5l4 4"/>',
@@ -109,7 +109,6 @@ const connEl = $('#conn');
 const hudEl = $('#map-hud');
 const nameInput = $('#atlas-name');
 const importInput = $('#import-file');
-$('#brand-mark').innerHTML = svgIcon(BRAND_SVG, { size: 22 });
 
 // ---- boot -----------------------------------------------------------------
 
