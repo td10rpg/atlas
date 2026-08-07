@@ -23,11 +23,19 @@ export const TERRAIN_ICONS = {
   },
   plains: {
     label: 'Plains',
-    svg: '<path d="M5 20v-5M5 15c0-2 1-3 1-3M5 15c0-2-1-3-1-3"/><path d="M12 20v-6M12 14c0-2 1.4-3.5 1.4-3.5M12 14c0-2-1.4-3.5-1.4-3.5"/><path d="M19 20v-5M19 15c0-2 1-3 1-3M19 15c0-2-1-3-1-3"/>',
+    // Grassland: clumps of grass tufts, blades fanning up from the ground.
+    svg: '<path d="M6.5 20Q6.5 15 6.5 12M6.5 20Q5.3 15.5 4 13M6.5 20Q7.7 15.5 9 13' +
+      'M12 20Q12 14.4 12 11.3M12 20Q10.6 15 9.2 12.6M12 20Q13.4 15 14.8 12.6' +
+      'M17.5 20Q17.5 15 17.5 12M17.5 20Q16.3 15.5 15 13M17.5 20Q18.7 15.5 20 13"/>',
   },
   swamp: {
     label: 'Wetlands',
-    svg: '<path d="M4 20v-7M4 13l-1.5-1.5M4 13l1.5-1.5"/><path d="M11 20v-8M11 12l-1.5-1.5M11 12l1.5-1.5"/><path d="M18 20v-7M18 13l-1.5-1.5M18 13l1.5-1.5"/><path d="M3 20c2-1.4 3.6-1.4 5.5 0S12 21.4 14 20s3.6-1.4 5.5 0" fill="none"/>',
+    // Marsh: grass tufts standing in standing water (horizontal water lines) —
+    // the classic cartographic wetland symbol.
+    svg: '<path d="M6 16V9.8M6 16 4.7 11.4M6 16 7.3 11.4' +
+      'M12 16V9.2M12 16 10.6 10.8M12 16 13.4 10.8' +
+      'M18 16V9.8M18 16 16.7 11.4M18 16 19.3 11.4' +
+      'M3 18.8H10M13 18.8H21M6 21.2H13M16 21.2H21"/>',
   },
   coast: {
     label: 'Coast / Ocean',
