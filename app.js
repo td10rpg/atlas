@@ -100,7 +100,7 @@ function cycleTheme() {
   try { localStorage.setItem(THEME_KEY, S.theme); } catch { /* ignore */ }
   applyTheme();
   renderConn();
-  if (S.atlas) renderMap(); // land fills deepen in light mode — rebuild to reflect it
+  if (S.atlas) renderMap(); // land fills deepen in light mode—rebuild to reflect it
 }
 
 // ---- element refs ---------------------------------------------------------
@@ -127,7 +127,7 @@ async function boot() {
   // 0) Demo mode (e.g. a bundled single-file build): skip file access entirely
   //    and boot straight into a seeded in-memory atlas so there's something to poke.
   if (globalThis.__HA_INMEMORY__) {
-    startInMemory('In-memory demo — connect a folder in the hosted app to save real files.');
+    startInMemory('In-memory demo—connect a folder in the hosted app to save real files.');
     return;
   }
 
@@ -167,7 +167,7 @@ async function boot() {
   S.atlas = createStarterAtlas(true);
   S.dir = null;
   afterLoad();
-  toast('This is the Hinterlands — explore and edit it freely. Start your own any time: New folder, Random map, or a map image.');
+  toast('This is the Hinterlands—explore and edit it freely. Start your own any time: New folder, Random map, or a map image.');
 }
 
 function startInMemory(msg) {
@@ -230,17 +230,17 @@ function buildTools() {
   toolsEl.innerHTML =
     tool('inspect', 'Inspect / select (drag to pan)') +
     '<div class="sep"></div>' +
-    tool('terrain', 'Paint terrain — click to pick the brush') +
-    tool('region', 'Paint region — click to pick the region') +
-    tool('icon', 'Feature icon — click to pick; paint a hex\'s icon without changing its terrain') +
-    tool('river', 'Draw a river — drag to trace; tap a river to remove it') +
-    tool('label', 'Label — click to place; click a label to edit (clear to delete); drag a label to move it') +
+    tool('terrain', 'Paint terrain—click to pick the brush') +
+    tool('region', 'Paint region—click to pick the region') +
+    tool('icon', 'Feature icon—click to pick; paint a hex\'s icon without changing its terrain') +
+    tool('river', 'Draw a river—drag to trace; tap a river to remove it') +
+    tool('label', 'Label—click to place; click a label to edit (clear to delete); drag a label to move it') +
     '<div class="sep"></div>' +
     tool('settlement', 'Stamp a settlement (WAG)') +
     tool('site', 'Stamp a site (WAG)') +
     '<div class="sep"></div>' +
-    tool('marker', 'Party marker — click a hex to place / move it') +
-    tool('measure', 'Measure — click two hexes for distance & travel time') +
+    tool('marker', 'Party marker—click a hex to place / move it') +
+    tool('measure', 'Measure—click two hexes for distance & travel time') +
     tool('erase', 'Erase hex');
 }
 
@@ -344,7 +344,7 @@ function renderRegionModal() {
     `<div class="modal-card" role="dialog" aria-label="Edit regions">` +
       `<div class="modal-head"><h3>Regions</h3><button class="btn small" data-ract="close">Done</button></div>` +
       `<p class="modal-note">Regions tint the map and constrain WAG terrain (a hex only rolls terrains in its region's palette). Rename, recolour, toggle each region's terrains, add or remove regions. Renaming keeps existing hex assignments.</p>` +
-      `<div class="region-rows">${rows || '<p class="modal-note">No regions — add one.</p>'}</div>` +
+      `<div class="region-rows">${rows || '<p class="modal-note">No regions—add one.</p>'}</div>` +
       `<div class="modal-foot"><button class="btn small" data-ract="add">＋ Add region</button>` +
         `<button class="btn small ghost" data-ract="reset" title="Restore the Hinterlands regions">Reset to default</button></div>` +
     `</div>`;
@@ -1194,7 +1194,7 @@ function saveLocal() {
       config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], regions: S.atlas.regions || [], customTables: S.atlas.customTables || {} },
       hexes,
     }));
-  } catch { /* quota or private mode — ignore */ }
+  } catch { /* quota or private mode—ignore */ }
 }
 function loadLocal() {
   try {
@@ -1356,7 +1356,7 @@ function renderInspector() {
       `<div class="insp-empty"><h3>No hex selected</h3>` +
       `<p>Click a hex to survey it. Then:</p>` +
       `<ul>` +
-      `<li><b>Generate (WAG)</b> rolls the whole hex — weather, feature, sign, encounter, discovery.</li>` +
+      `<li><b>Generate (WAG)</b> rolls the whole hex: weather, feature, sign, encounter, discovery.</li>` +
       `<li>The <b>terrain</b> auto-sets the icon; paint terrain with the brush, or set it here.</li>` +
       `<li>Re-roll any single line with its die.</li>` +
       `<li>Add a <b>Site</b> or <b>Settlement</b> for the discovered layer.</li>` +
@@ -1366,7 +1366,7 @@ function renderInspector() {
   }
   const id = S.selected;
   const h = getHex(S.atlas, id) || emptyHex(id);
-  const locked = false; // canon is a marker (★), not a lock — every field stays editable
+  const locked = false; // canon is a marker (★), not a lock—every field stays editable
   const wagLine = (key, tag) => {
     const has = !!h[key];
     const text = key === 'feature'
@@ -1381,12 +1381,12 @@ function renderInspector() {
   inspectorEl.innerHTML =
     `<div class="insp-head">` +
       `<div class="row"><span class="hid">Hex ${id}</span>` +
-      (h.canon ? `<span class="canon-tag" title="Ships as canon — edit it freely; the ★ just marks the original">canon ★</span>` : '') +
+      (h.canon ? `<span class="canon-tag" title="Ships as canon—edit it freely; the ★ just marks the original">canon ★</span>` : '') +
       `<span class="terr">${h.terrain || 'unsurveyed'}</span></div>` +
       `<input class="insp-name" name="hexname" type="text" placeholder="Name this hex (optional)" value="${escapeHtml(h.name || '')}" ${locked ? 'disabled' : ''} />` +
     `</div>` +
     `<div class="insp-body">` +
-      (locked ? `<div class="lock-note">Canon hex — its name, terrain, and places are fixed. You can still roll the WAG survey and take notes.</div>` : '') +
+      (locked ? `<div class="lock-note">Canon hex—its name, terrain, and places are fixed. You can still roll the WAG survey and take notes.</div>` : '') +
       `<div class="two-col">` +
         `<div class="field"><label>Region</label><select name="region" ${locked ? 'disabled' : ''}>` +
           (S.atlas.regions || []).map((r) => `<option ${r.name === (h.region || 'Unassigned') ? 'selected' : ''}>${r.name}</option>`).join('') +
@@ -1429,7 +1429,7 @@ function renderInspector() {
 const TABLE_FOR = { weather: 'weather', sign: 'sign', discovery: 'discovery' };
 function tableTag(label, tableKey) {
   return tableKey
-    ? `<button class="wl-tag wl-tag-btn" data-action="edit-table" data-table="${tableKey}" title="Edit this table — add your own results">${label}</button>`
+    ? `<button class="wl-tag wl-tag-btn" data-action="edit-table" data-table="${tableKey}" title="Edit this table—add your own results">${label}</button>`
     : `<span class="wl-tag">${label}</span>`;
 }
 const PLACE_FIELDS = {
@@ -1465,7 +1465,7 @@ function notesBlock(h) {
   return `<div class="notes-head"><h4>Notes</h4>` +
     `<div class="tabs"><button class="tab ${S.notesTab === 'write' ? 'active' : ''}" data-tab="write">Write</button>` +
     `<button class="tab ${S.notesTab === 'preview' ? 'active' : ''}" data-tab="preview">Preview</button></div></div>` +
-    `<textarea id="notes-edit" name="notes" placeholder="GM notes — Markdown. Read-aloud, secrets, faction ties…">${escapeHtml(h.notes || '')}</textarea>` +
+    `<textarea id="notes-edit" name="notes" placeholder="GM notes—Markdown. Read-aloud, secrets, faction ties…">${escapeHtml(h.notes || '')}</textarea>` +
     `<div class="notes-preview md" id="notes-preview"></div>`;
 }
 
@@ -1699,7 +1699,7 @@ async function newFolder() {
       { value: 'empty', label: 'Start empty' },
     ],
   });
-  if (choice === null) return;               // dismissed — create nothing
+  if (choice === null) return;               // dismissed—create nothing
   const withCanon = choice === 'canon';
   try {
     const { dir, atlas } = await store.createAtlasFolder(withCanon);
@@ -1930,12 +1930,12 @@ function showLanding(opts) {
     `<div class="landing-card">` +
       `<h1>ATLAS</h1>` +
       `<p class="lede">A little hex-atlas maker for Tiny&nbsp;d10. Survey hexes with the <b>Worldwide Adventure Generator</b>, ` +
-      `let terrain set each hex's icon, and keep your notes in Markdown. Your map is a real folder of files you own — ` +
+      `let terrain set each hex's icon, and keep your notes in Markdown. Your map is a real folder of files you own—` +
       `one Markdown stat-block per hex.</p>` +
       `<div class="actions">${actions}</div>` +
       (supported
-        ? `<p class="fine">Pick an empty folder for a new atlas, or open one you made before. Files are written straight to that folder by the browser — nothing leaves your machine.</p>`
-        : `<p class="fine">This browser can't open local folders (that needs Chrome or Edge). You can still work here — the map is kept in this browser and you can Export / Import a <code>.json</code> backup.</p>`) +
+        ? `<p class="fine">Pick an empty folder for a new atlas, or open one you made before. Files are written straight to that folder by the browser—nothing leaves your machine.</p>`
+        : `<p class="fine">This browser can't open local folders (that needs Chrome or Edge). You can still work here—the map is kept in this browser and you can Export / Import a <code>.json</code> backup.</p>`) +
     `</div>`;
   mapWrap.appendChild(card);
   card.addEventListener('click', (e) => {
@@ -1986,8 +1986,8 @@ function renderTableModal() {
     `<div class="modal-card" role="dialog" aria-label="Edit table">` +
       `<div class="modal-head"><h3>${escapeHtml(tableLabel(tableEdit.key))}${isCustom ? ' <span class="custom-tag">customised</span>' : ''}</h3>` +
       `<button class="btn small" data-mact="close">Done</button></div>` +
-      `<p class="modal-note">Edit results or add your own — they feed straight into rolling and re-rolling, and are saved with this atlas.</p>` +
-      `<div class="trows">${rows || '<p class="modal-note">No rows — add one.</p>'}</div>` +
+      `<p class="modal-note">Edit results or add your own—they feed straight into rolling and re-rolling, and are saved with this atlas.</p>` +
+      `<div class="trows">${rows || '<p class="modal-note">No rows—add one.</p>'}</div>` +
       `<div class="modal-foot"><button class="btn small" data-mact="add">＋ Add row</button>` +
       `<button class="btn small ghost" data-mact="reset" title="Restore the built-in table">Reset to default</button></div>` +
     `</div>`;
@@ -2108,7 +2108,7 @@ function openImportModal(img) {
   if (!el) { el = document.createElement('div'); el.id = 'modal'; el.className = 'modal'; document.body.appendChild(el); el.addEventListener('click', onModalClick); el.addEventListener('input', onModalInput); }
   el.innerHTML =
     `<div class="modal-card"><div class="modal-head"><h3>Import map → hexes</h3><button class="btn small" data-mact="imp-cancel">Cancel</button></div>` +
-    `<p class="modal-note">Each hex is sampled and given the nearest terrain — teal → coast, greens → forest / plains, brown &amp; grey → hills, tan → desert, pale blue → tundra. Survey content stays blank; refine terrain with the paint brush afterward.</p>` +
+    `<p class="modal-note">Each hex is sampled and given the nearest terrain—teal → coast, greens → forest / plains, brown &amp; grey → hills, tan → desert, pale blue → tundra. Survey content stays blank; refine terrain with the paint brush afterward.</p>` +
     `<div style="padding:10px 18px;text-align:center"><img id="imp-preview" alt="map preview" style="max-width:100%;max-height:42vh;border:1px solid var(--line);border-radius:8px" /></div>` +
     `<div class="modal-foot"><label>Columns <input type="number" id="imp-cols" min="4" max="60" value="26" style="width:56px" /></label>` +
     `<button class="btn primary" data-mact="imp-go">Convert to hexes</button></div></div>`;

@@ -186,7 +186,7 @@ export const SIGN = [
 export const ENCOUNTER_CHECK = [
   { lo: 1, hi: 5,  name: 'None',        detail: 'Only the sign; the country keeps its distance for now.', encounter: false, count: 0, disadvantage: false },
   { lo: 6, hi: 8,  name: 'Encounter',   detail: 'Something crosses the party’s path (roll Table E).', encounter: true, count: 1, disadvantage: false },
-  { lo: 9, hi: 9,  name: 'Ambush',      detail: 'An encounter that has the party at a disadvantage — surprise, ground, or numbers.', encounter: true, count: 1, disadvantage: true },
+  { lo: 9, hi: 9,  name: 'Ambush',      detail: 'An encounter that has the party at a disadvantage—surprise, ground, or numbers.', encounter: true, count: 1, disadvantage: true },
   { lo: 10, hi: 10, name: 'Two things',  detail: 'Two encounters at once, or one that draws a second (roll Table E twice).', encounter: true, count: 2, disadvantage: false },
 ];
 
@@ -287,7 +287,7 @@ export const SETTLEMENT_CONFLICT = [
   { lo: 6, hi: 6,   name: 'A crime with consequences (theft, murder, sabotage)', desc: '' },
   { lo: 7, hi: 7,   name: 'A bad map, false guide, or lie about the safe route', desc: '' },
   { lo: 8, hi: 8,   name: 'A natural disaster (sinkhole, rockslide, quake)', desc: '' },
-  { lo: 9, hi: 9,   name: 'A bad deal was made — and payment is due', desc: '' },
+  { lo: 9, hi: 9,   name: 'A bad deal was made—and payment is due', desc: '' },
   { lo: 10, hi: 10, name: 'Someone is about to do something unwise (and should be stopped)', desc: '' },
 ];
 

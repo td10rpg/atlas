@@ -26,9 +26,9 @@ export function createAtlas(name = 'The Hinterlands') {
     createdWith: 'td10 Atlas',
     hexes: {},      // id -> hex record (populated only)
     markers: [],    // atlas-level overlay: [{ type, hexId, label }] (backlog 16)
-    rivers: [],     // atlas-level overlay: [ [[x,y], …], … ] — polylines of snapped
+    rivers: [],     // atlas-level overlay: [ [[x,y], …], … ]—polylines of snapped
                     //   sub-hex-lattice vertices in board units (the river tool)
-    labels: [],     // atlas-level overlay: [{ x, y, text }] — free text on the map
+    labels: [],     // atlas-level overlay: [{ x, y, text }]—free text on the map
     regions: DEFAULT_REGIONS.map((r) => ({ name: r.name, color: r.color, prefer: [...r.prefer] })), // editable (backlog 19)
     customTables: {}, // per-atlas WAG table overrides: { tableKey: [{name, desc}] } (backlog 4)
   };

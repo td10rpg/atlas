@@ -139,7 +139,7 @@ export function serializeHex(h) {
   fm.push('---');
 
   const body = [];
-  const title = h.name ? `Hex ${h.id} — ${h.name}` : `Hex ${h.id}`;
+  const title = h.name ? `Hex ${h.id}—${h.name}` : `Hex ${h.id}`;
   body.push(`# ${title}`);
   if (h.canon) body.push('*Hinterlands canon.*');
   body.push('');
