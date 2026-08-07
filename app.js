@@ -35,8 +35,13 @@ const TERRAIN_COLOR = {
   'Desert': '#d9c07f', 'Urban': '#8f7a6a',
 };
 
-// The brand mark is the official Tiny d10 logo (assets/td10-logo.png), set in the
-// markup — see index.html › #brand-mark.
+// The brand mark: a flat-top hex outline with the stronghold glyph at its centre —
+// black-and-white line art that tints with currentColor, so it themes for free.
+const BRAND_SVG =
+  '<path d="M22 12 17 20.66 7 20.66 2 12 7 3.34 17 3.34Z"/>' +
+  '<g transform="translate(12 12) scale(0.7) translate(-12 -13)">' +
+    '<path fill="currentColor" stroke="none" fill-rule="evenodd" d="M8 20V6h2v1.6h1V6h2v1.6h1V6h2v14zM10.4 20v-4.6a1.6 1.6 0 0 1 3.2 0V20z"/>' +
+  '</g>';
 const TOOL_ICONS = {
   inspect: '<path d="M5 3l14 8-6 1.6L10 19z"/>',
   terrain: '<path d="M3 21l6-2 9-9-4-4-9 9z"/><path d="M13.5 6.5l4 4"/>',
@@ -109,6 +114,7 @@ const connEl = $('#conn');
 const hudEl = $('#map-hud');
 const nameInput = $('#atlas-name');
 const importInput = $('#import-file');
+$('#brand-mark').innerHTML = svgIcon(BRAND_SVG, { size: 22 });
 
 // ---- boot -----------------------------------------------------------------
 
