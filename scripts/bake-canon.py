@@ -81,11 +81,21 @@ for reg in cfg.get("regions", []):
 rivers = [[[r1(x), r1(y)] for (x, y) in line] for line in cfg.get("rivers", [])]
 labels = [{"x": r1(l["x"]), "y": r1(l["y"]), "text": l.get("text", "")} for l in cfg.get("labels", [])]
 
+# --- canon corrections applied on top of the export -----------------------
+HEX_MILES = 24  # the Hinterlands' default scale (a big frontier)
+for l in labels:
+    if l["text"] == "The Meltands":
+        l["text"] = "The Meltlands"           # typo fix
+for h in hexes.values():
+    for s in h.get("settlements", []):
+        if s.get("name") == "The Bastion at Stonefall":
+            s["name"] = "Fort Stonefall"       # match the renamed hex/fort
+
 seed = {
     "name": cfg.get("name", "The Hinterlands"),
     "cols": cfg.get("cols"),
     "rows": cfg.get("rows"),
-    "hexMiles": cfg.get("hexMiles"),
+    "hexMiles": HEX_MILES,
     "regions": regions,
     "rivers": rivers,
     "labels": labels,

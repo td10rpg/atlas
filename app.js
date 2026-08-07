@@ -35,7 +35,8 @@ const TERRAIN_COLOR = {
   'Desert': '#d9c07f', 'Urban': '#8f7a6a',
 };
 
-const BRAND_SVG = '<path d="M12 2l3 6 6 .5-4.5 4.2 1.4 6.3L12 16.9 6.1 19l1.4-6.3L3 8.5 9 8z" fill="none" stroke="currentColor" stroke-width="1.4"/>';
+// A d10 (the Tiny d10 mark): a faceted die — pentagon body, top face fold, centre ridge.
+const BRAND_SVG = '<path d="M12 2.2 20 9 16.5 20 7.5 20 4 9Z"/><path d="M4 9 12 12.5 20 9M12 2.2V20"/>';
 const TOOL_ICONS = {
   inspect: '<path d="M5 3l14 8-6 1.6L10 19z"/>',
   terrain: '<path d="M3 21l6-2 9-9-4-4-9 9z"/><path d="M13.5 6.5l4 4"/>',
@@ -1922,7 +1923,7 @@ function showLanding(opts) {
   }
   card.innerHTML =
     `<div class="landing-card">` +
-      `<h1>td10 Atlas</h1>` +
+      `<h1>atlas</h1>` +
       `<p class="lede">A little hex-atlas maker for Tiny&nbsp;d10. Survey hexes with the <b>Worldwide Adventure Generator</b>, ` +
       `let terrain set each hex's icon, and keep your notes in Markdown. Your map is a real folder of files you own — ` +
       `one Markdown stat-block per hex.</p>` +
