@@ -183,7 +183,7 @@ async function boot() {
   S.atlas = createStarterAtlas(true);
   S.dir = null;
   afterLoad();
-  toast('This is the Hinterlands—explore and edit it freely. Start your own any time: New folder, Random map, or a map image.');
+  toast('This is the Hinterlands—explore and edit it freely. Start your own any time: New folder, Random map, or a map image.', false, 7500);
 }
 
 function startInMemory(msg) {
@@ -1355,37 +1355,42 @@ function mutate(id, fn) {
   recordChange();
 }
 
-// Erase clears a hex fast: it removes any marker stamps (party, treasure, warning,
-// objective, camp, rumor) on the hex AND wipes the painted content (terrain, region,
-// icon, name, notes…) — but it deliberately preserves settlements/sites, which are
-// anchored to rolled WAG results, so a broad sweep never destroys that data.
+// Erase peels ONE thing off a hex per application (click, or per hex while dragging):
+// if the hex holds any marker stamps (party, treasure, warning, objective, camp,
+// rumor), it removes the topmost one; otherwise it clears the painted content
+// (terrain, region, icon, name, notes…). Settlements/sites are anchored to rolled
+// WAG results and are never erased here.
 function eraseHex(id) {
-  let changed = false;
-
-  // 1) remove marker stamps on this hex
+  // 1) one stamp, topmost first (last drawn = last in the array on this hex)
   const list = S.atlas.markers || [];
-  const kept = list.filter((m) => m.hexId !== id);
-  if (kept.length !== list.length) { S.atlas.markers = kept; changed = true; }
-
-  // 2) clear the painted hex, keeping any WAG places
-  const h = S.atlas.hexes[id];
-  if (h) {
-    if (hasSite(h) || hasSettlement(h)) {
-      h.terrain = ''; h.region = ''; h.icon = ''; h.iconPinned = false;
-      h.name = ''; h.weather = ''; h.feature = ''; h.notes = ''; h.factions = [];
-      persistHex(id);          // still populated (has WAG places) → saved, not deleted
-    } else {
-      delete S.atlas.hexes[id];
-      if (S.dir) store.removeHex(S.dir, id).catch(() => {});
-      saveLocal();
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].hexId === id) {
+      list.splice(i, 1);
+      persistConfig();          // markers live in the config
+      drawOverlay();
+      if (S.selected === id) renderInspector();
+      renderHud();
+      recordChange();
+      return;
     }
-    changed = true;
   }
 
-  if (!changed) return;
-  persistConfig();             // markers live in the config
+  // 2) no stamps left → clear the painted hex, keeping any WAG places
+  const h = S.atlas.hexes[id];
+  if (!h) return;
+  if (hasSite(h) || hasSettlement(h)) {
+    const hadPaint = h.terrain || h.region || h.name || h.notes || h.weather ||
+      h.feature || (h.iconPinned && h.icon) || (h.factions && h.factions.length);
+    if (!hadPaint) return;      // only protected WAG places remain — nothing to erase
+    h.terrain = ''; h.region = ''; h.icon = ''; h.iconPinned = false;
+    h.name = ''; h.weather = ''; h.feature = ''; h.notes = ''; h.factions = [];
+    persistHex(id);             // still populated (has WAG places) → saved, not deleted
+  } else {
+    delete S.atlas.hexes[id];
+    if (S.dir) store.removeHex(S.dir, id).catch(() => {});
+    saveLocal();
+  }
   refreshHex(id);
-  drawOverlay();               // reflect removed markers
   if (S.selected === id) renderInspector();
   renderHud();
   recordChange();
@@ -2405,13 +2410,13 @@ async function doImportMap(cols) {
 // ---- toast + small utils --------------------------------------------------
 
 let toastTimer;
-function toast(msg, isErr) {
+function toast(msg, isErr, dur = 2600) {
   let t = $('#toast');
   if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
   t.textContent = msg;
   t.className = 'toast show' + (isErr ? ' err' : '');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, dur);
 }
 function escapeHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
