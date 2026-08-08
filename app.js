@@ -264,7 +264,7 @@ function buildTools() {
 function setTool(key) {
   S.tool = key;
   closeBrushMenu();
-  if (key !== 'measure') measure = { a: null, b: null };
+  if (key !== 'measure') measure = { points: [] };
   buildTools();
   renderHud();
   mapEl.classList.toggle('painting', key !== 'inspect');
@@ -714,28 +714,41 @@ function openLabelEditor(clientX, clientY) {
 function closeLabelEditor() { const el = $('#label-input'); if (el) el.remove(); }
 
 // ---- measure tool ---------------------------------------------------------
-let measure = { a: null, b: null };
+// Multi-leg: each click adds a waypoint, so a route can bend around obstacles
+// (mountains, etc.) rather than measuring a single straight line — and the badge
+// sums every leg. Esc clears the route; switching tools also resets it.
+let measure = { points: [] };
 function measureClick(id) {
-  if (!measure.a || measure.b) measure = { a: id, b: null };
-  else measure.b = id;
+  measure.points.push(id);
   drawOverlay();
   updateMeasureBadge();
 }
-function clearMeasure() { measure = { a: null, b: null }; updateMeasureBadge(); }
+function clearMeasure() { measure = { points: [] }; updateMeasureBadge(); }
+/** Per-leg distances (in hexes) between consecutive waypoints. */
+function measureLegs() {
+  const legs = [];
+  for (let i = 1; i < measure.points.length; i++) {
+    const A = parseId(measure.points[i - 1]), B = parseId(measure.points[i]);
+    legs.push(hexDistance(A.col, A.row, B.col, B.row));
+  }
+  return legs;
+}
 function measureText() {
-  if (!measure.a) return '';
-  if (!measure.b) return 'Now click the destination hex…';
-  const A = parseId(measure.a), B = parseId(measure.b);
-  const d = hexDistance(A.col, A.row, B.col, B.row);
-  const miles = d * (S.atlas.hexMiles || 6);
+  const n = measure.points.length;
+  if (n === 0) return '';
+  if (n === 1) return 'Click the next hex to add a leg… (Esc to clear)';
+  const legs = measureLegs();
+  const hexes = legs.reduce((a, b) => a + b, 0);
+  const miles = hexes * (S.atlas.hexMiles || 6);
   const days = miles / 24; // wilderness pace ≈ 24 mi/day (the classic 4 six-mile hexes) — scale-independent
   const dv = Math.round(days * 10) / 10;
-  const dayStr = d === 0 ? 'same hex' : days < 1 ? 'under a day' : `≈ ${dv} ${dv === 1 ? 'day' : 'days'}`;
-  return `${d} hex${d === 1 ? '' : 'es'} · ${miles} mi · ${dayStr}`;
+  const dayStr = hexes === 0 ? 'same hex' : days < 1 ? 'under a day' : `≈ ${dv} ${dv === 1 ? 'day' : 'days'}`;
+  const legStr = legs.length > 1 ? `${legs.length} legs · ` : '';
+  return `${legStr}${hexes} hex${hexes === 1 ? '' : 'es'} · ${miles} mi · ${dayStr}`;
 }
 function updateMeasureBadge() {
   let el = $('#measure-badge');
-  const txt = S.tool === 'measure' && measure.a ? measureText() : '';
+  const txt = S.tool === 'measure' && measure.points.length ? measureText() : '';
   if (!txt) { if (el) el.remove(); return; }
   if (!el) { el = document.createElement('div'); el.id = 'measure-badge'; el.className = 'measure-badge'; mapWrap.appendChild(el); }
   el.textContent = txt;
@@ -1022,14 +1035,13 @@ function drawOverlay() {
   });
   const pll = mapEl.querySelector('#party-label-layer');
   if (pll) pll.innerHTML = partyLabels;
-  if (S.tool === 'measure' && measure.a) {
-    const A = parseId(measure.a); const pa = hexCenter(A.col, A.row, SIZE);
+  if (S.tool === 'measure' && measure.points.length) {
+    const pts = measure.points.map((id) => { const p = parseId(id); return hexCenter(p.col, p.row, SIZE); });
     const dot = (p) => `<circle class="measure-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5"/>`;
-    s += dot(pa);
-    if (measure.b) {
-      const B = parseId(measure.b); const pb = hexCenter(B.col, B.row, SIZE);
-      s += `<line class="measure-line" x1="${pa.x.toFixed(1)}" y1="${pa.y.toFixed(1)}" x2="${pb.x.toFixed(1)}" y2="${pb.y.toFixed(1)}"/>` + dot(pb);
+    for (let i = 1; i < pts.length; i++) {
+      s += `<line class="measure-line" x1="${pts[i - 1].x.toFixed(1)}" y1="${pts[i - 1].y.toFixed(1)}" x2="${pts[i].x.toFixed(1)}" y2="${pts[i].y.toFixed(1)}"/>`;
     }
+    pts.forEach((p) => { s += dot(p); });
   }
   ov.innerHTML = s;
   applyLabelScale(); // size + zoom-gate the party labels just rendered
@@ -1943,7 +1955,11 @@ function wireEvents() {
     const map = { v: 'inspect', t: 'terrain', r: 'region', s: 'stamp', e: 'erase' };
     if (map[e.key]) setTool(map[e.key]);
     if (e.key === 'g' && S.selected) { onInspectorClick({ target: mkFakeBtn('generate') }); }
-    if (e.key === 'Escape') { if ($('#modal')) closeModal(); else setSelected(null); }
+    if (e.key === 'Escape') {
+      if ($('#modal')) closeModal();
+      else if (S.tool === 'measure' && measure.points.length) { clearMeasure(); drawOverlay(); }
+      else setSelected(null);
+    }
   });
 }
 function mkFakeBtn(action) {
