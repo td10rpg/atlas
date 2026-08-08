@@ -1123,7 +1123,7 @@ function wirePointer() {
       : dragParty ? 'party-drag'
       : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
     pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId, party: dragParty };
-    if (mode === 'paint') paintHex(downId, true);
+    if (mode === 'paint') { const [bx, by] = clientToBoard(e.clientX, e.clientY); paintHex(downId, true, bx, by); }
     if (mode === 'river') pointer.raw = [clampToBoard(clientToBoard(e.clientX, e.clientY))];
     else if (mode === 'marquee') { const [bx, by] = clientToBoard(e.clientX, e.clientY); marquee = { x0: bx, y0: by, x1: bx, y1: by }; }
     else { if (mode === 'label') { const [bx, by] = clientToBoard(e.clientX, e.clientY); pointer.labelIdx = findLabelAt(bx, by); } mapEl.classList.add('grabbing'); }
@@ -1152,7 +1152,7 @@ function wirePointer() {
       const hex = document.elementFromPoint(e.clientX, e.clientY);
       const g = hex && hex.closest ? hex.closest('.hex') : null;
       const id = g ? g.dataset.id : null;
-      if (id && id !== pointer.last) { paintHex(id, false); pointer.last = id; }
+      if (id && id !== pointer.last) { const [bx, by] = clientToBoard(e.clientX, e.clientY); paintHex(id, false, bx, by); pointer.last = id; }
     }
     if (Math.hypot(e.clientX - pointer.x, e.clientY - pointer.y) > 4) pointer.moved = true;
     pointer.lx = e.clientX; pointer.ly = e.clientY;
@@ -1208,7 +1208,7 @@ function wirePointer() {
 // allowToggle is true on a deliberate click (pointerdown) and false while dragging
 // a stroke — so a click on a hex that already has that stamp removes it (backlog 11),
 // but dragging across hexes only ever adds. Canon hexes refuse all paint (backlog 2).
-function paintHex(id, allowToggle) {
+function paintHex(id, allowToggle, bx, by) {
   // Canon hexes are a starting point, not a cage — every tool paints them freely
   // (the ★ just marks what shipped as canon). The marker is still its own case.
   if (S.tool === 'stamp') { applyStamp(id, allowToggle); return; }
@@ -1221,7 +1221,7 @@ function paintHex(id, allowToggle) {
       else if (S.brushIcon === 'none') { h.icon = ''; h.iconPinned = true; }
       else { h.icon = S.brushIcon; h.iconPinned = true; }
     }); break;
-    case 'erase': eraseHex(id); break;
+    case 'erase': eraseAt(id, bx, by); break;
   }
 }
 
@@ -1355,18 +1355,27 @@ function mutate(id, fn) {
   recordChange();
 }
 
-// Erase peels ONE thing off a hex per application (click, or per hex while dragging):
-// if the hex holds any marker stamps (party, treasure, warning, objective, camp,
-// rumor), it removes the topmost one; otherwise it clears the painted content
-// (terrain, region, icon, name, notes…). Settlements/sites are anchored to rolled
-// WAG results and are never erased here.
-function eraseHex(id) {
-  // 1) one stamp, topmost first (last drawn = last in the array on this hex)
-  const list = S.atlas.markers || [];
-  for (let i = list.length - 1; i >= 0; i--) {
-    if (list[i].hexId === id) {
-      list.splice(i, 1);
-      persistConfig();          // markers live in the config
+// Erase acts on exactly what's under the cursor. A direct hit on a marker coin
+// removes that one stamp; a click anywhere else on the hex clears its painted
+// content (terrain, region, icon, name, notes…). Settlements/sites are anchored to
+// rolled WAG results and are never erased here.
+function eraseAt(id, bx, by) {
+  // Marker coins are drawn at the hex centre, fanned horizontally, at a zoom-
+  // independent board size — so hit-test the click point against them directly.
+  const here = (S.atlas.markers || []).filter((m) => m.hexId === id);
+  if (here.length && Number.isFinite(bx) && Number.isFinite(by)) {
+    const { col, row } = parseId(id);
+    const { x, y } = hexCenter(col, row, SIZE);
+    const s = SIZE * 0.46, r = s / 2 + 1.5, gap = SIZE * 0.5;
+    const x0 = x - gap * (here.length - 1) / 2;
+    let hit = null, best = r * r;
+    here.forEach((m, i) => {
+      const dx = bx - (x0 + i * gap), dy = by - y, d = dx * dx + dy * dy;
+      if (d <= best) { best = d; hit = m; }   // nearest coin whose disc contains the point
+    });
+    if (hit) {
+      S.atlas.markers = S.atlas.markers.filter((m) => m !== hit);
+      persistConfig();
       drawOverlay();
       if (S.selected === id) renderInspector();
       renderHud();
@@ -1374,8 +1383,23 @@ function eraseHex(id) {
       return;
     }
   }
+  eraseTerrain(id);
+}
 
-  // 2) no stamps left → clear the painted hex, keeping any WAG places
+// The inspector's explicit, confirmed "Clear hex": delete the whole record + file
+// (sites/settlements included — this is the deliberate wipe, not the eraser tool).
+function clearHexRecord(id) {
+  delete S.atlas.hexes[id];
+  if (S.dir) store.removeHex(S.dir, id).catch(() => {});
+  refreshHex(id);
+  saveLocal();
+  if (S.selected === id) renderInspector();
+  renderHud();
+  recordChange();
+}
+
+// Clear a hex's painted content, keeping any WAG-anchored sites/settlements.
+function eraseTerrain(id) {
   const h = S.atlas.hexes[id];
   if (!h) return;
   if (hasSite(h) || hasSettlement(h)) {
@@ -1766,7 +1790,7 @@ function onInspectorClick(e) {
         title: `Clear hex ${id}?`,
         body: 'This deletes the hex and its file. It can be undone with Ctrl/Cmd-Z.',
         choices: [{ value: 'ok', label: 'Clear hex', primary: true, danger: true }],
-      }).then((r) => { if (r === 'ok') eraseHex(id); });
+      }).then((r) => { if (r === 'ok') clearHexRecord(id); });
       break;
   }
 }
