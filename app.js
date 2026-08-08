@@ -249,15 +249,15 @@ function buildTools() {
   toolsEl.innerHTML =
     tool('inspect', 'Inspect / select (drag to pan)') +
     '<div class="sep"></div>' +
-    tool('terrain', 'Paint terrain—click to pick the brush') +
-    tool('region', 'Paint region—click to pick the region') +
-    tool('icon', 'Feature icon—click to pick; paint a hex\'s icon without changing its terrain') +
-    tool('river', 'Draw a river—drag to trace; tap a river to remove it') +
-    tool('label', 'Label—click to place; click a label to edit (clear to delete); drag a label to move it') +
+    tool('terrain', 'Paint terrain – click to pick the brush') +
+    tool('region', 'Paint region – click to pick the region') +
+    tool('icon', 'Feature icon – click to pick; paint a hex\'s icon without changing its terrain') +
+    tool('river', 'Draw a river – drag to trace; tap a river to remove it') +
+    tool('label', 'Label – click to place; click a label to edit (clear to delete); drag a label to move it') +
     '<div class="sep"></div>' +
-    tool('stamp', 'Stamp — settlements, sites, party & map markers; click to pick') +
+    tool('stamp', 'Stamp – settlements, sites, party & map markers; click to pick') +
     '<div class="sep"></div>' +
-    tool('measure', 'Measure—click two hexes for distance & travel time') +
+    tool('measure', 'Measure – click two hexes for distance & travel time') +
     tool('erase', 'Erase hex');
 }
 
@@ -1643,7 +1643,7 @@ function renderInspector() {
   inspectorEl.innerHTML =
     `<div class="insp-head">` +
       `<div class="row"><span class="hid">Hex ${id}</span>` +
-      (h.canon ? `<span class="canon-tag" title="Ships as canon—edit it freely; the ★ just marks the original">canon ★</span>` : '') +
+      (h.canon ? `<span class="canon-tag" title="Ships as canon – edit it freely; the ★ just marks the original">canon ★</span>` : '') +
       `<span class="terr">${h.terrain || 'unsurveyed'}</span></div>` +
       `<input class="insp-name" name="hexname" type="text" placeholder="Name this hex (optional)" value="${escapeHtml(h.name || '')}" ${locked ? 'disabled' : ''} />` +
     `</div>` +
@@ -1691,7 +1691,7 @@ function renderInspector() {
 const TABLE_FOR = { weather: 'weather', sign: 'sign', discovery: 'discovery' };
 function tableTag(label, tableKey) {
   return tableKey
-    ? `<button class="wl-tag wl-tag-btn" data-action="edit-table" data-table="${tableKey}" title="Edit this table—add your own results">${label}</button>`
+    ? `<button class="wl-tag wl-tag-btn" data-action="edit-table" data-table="${tableKey}" title="Edit this table – add your own results">${label}</button>`
     : `<span class="wl-tag">${label}</span>`;
 }
 const PLACE_FIELDS = {
