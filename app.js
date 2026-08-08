@@ -74,6 +74,7 @@ const S = {
   brushTerrain: 'Forest or Jungle',
   brushRegion: 'The Pine Expanse',
   brushIcon: 'mountain',   // the feature-icon brush (paints a hex's glyph, not its terrain)
+  brushStamp: 'settlement', // the selected stamp for the unified stamp tool
   showLabels: true,
   showGrid: true,       // hex outlines on/off (off = colours join as continuous zones)
   notesTab: 'write',
@@ -236,7 +237,9 @@ function buildTools() {
     // The icon tool shows the current feature-icon glyph; others show their tool icon.
     const inner = (key === 'icon' && TERRAIN_ICONS[S.brushIcon])
       ? terrainGlyph(S.brushIcon, { size: 22 })
-      : svgIcon(TOOL_ICONS[key], { size: 22 });
+      : key === 'stamp'
+        ? overlayGlyph(S.brushStamp, { size: 22 })
+        : svgIcon(TOOL_ICONS[key], { size: 22 });
     return `<button class="tool ${S.tool === key ? 'active' : ''}" data-tool="${key}" title="${title}">` +
       inner +
       (key === 'terrain' ? `<span class="swatch" style="background:${TERRAIN_COLOR[S.brushTerrain]}"></span>` : '') +
@@ -252,10 +255,8 @@ function buildTools() {
     tool('river', 'Draw a river—drag to trace; tap a river to remove it') +
     tool('label', 'Label—click to place; click a label to edit (clear to delete); drag a label to move it') +
     '<div class="sep"></div>' +
-    tool('settlement', 'Stamp a settlement (WAG)') +
-    tool('site', 'Stamp a site (WAG)') +
+    tool('stamp', 'Stamp — settlements, sites, party & map markers; click to pick') +
     '<div class="sep"></div>' +
-    tool('marker', 'Party marker—click a hex to place / move it') +
     tool('measure', 'Measure—click two hexes for distance & travel time') +
     tool('erase', 'Erase hex');
 }
@@ -271,22 +272,38 @@ function setTool(key) {
   updateMeasureBadge();
 }
 
-// ---- brush picker popover (terrain / region) ------------------------------
+// ---- brush picker popover (terrain / region / icon / stamp) ---------------
 // Opens off the tool button in the rail rather than living in the bottom bar.
 let brushMenuKind = null;
+// The unified stamp palette (≤8): data-bearing WAG stamps first, then the party
+// token and the visual map markers. Order = display order in the picker.
+const STAMP_ORDER = [
+  { v: 'settlement', label: 'Settlement' },
+  { v: 'site', label: 'Site of interest' },
+  { v: 'party', label: 'Party' },
+  { v: 'treasure', label: 'Treasure (X)' },
+  { v: 'warning', label: 'Warning (skull)' },
+  { v: 'objective', label: 'Objective' },
+  { v: 'camp', label: 'Camp' },
+  { v: 'rumor', label: 'Rumor' },
+];
 function openBrushMenu(kind, anchorBtn) {
   closeBrushMenu();
   const items = kind === 'terrain'
     ? TERRAINS.map((t) => ({ v: t.key, label: t.key, color: TERRAIN_COLOR[t.key] }))
     : kind === 'region'
       ? (S.atlas.regions || []).map((r) => ({ v: r.name, label: r.name, color: r.color }))
-      : [{ v: 'auto', label: 'Auto (match terrain)', glyph: '' }, { v: 'none', label: 'No icon', glyph: '' }]
-        .concat(Object.keys(TERRAIN_ICONS).map((k) => ({ v: k, label: TERRAIN_ICONS[k].label, glyph: k })));
-  const cur = kind === 'terrain' ? S.brushTerrain : kind === 'region' ? S.brushRegion : S.brushIcon;
-  const head = kind === 'terrain' ? 'Terrain brush' : kind === 'region' ? 'Region brush' : 'Feature icon';
+      : kind === 'stamp'
+        ? STAMP_ORDER.map((o) => ({ v: o.v, label: o.label, stamp: o.v }))
+        : [{ v: 'auto', label: 'Auto (match terrain)', glyph: '' }, { v: 'none', label: 'No icon', glyph: '' }]
+          .concat(Object.keys(TERRAIN_ICONS).map((k) => ({ v: k, label: TERRAIN_ICONS[k].label, glyph: k })));
+  const cur = kind === 'terrain' ? S.brushTerrain : kind === 'region' ? S.brushRegion : kind === 'stamp' ? S.brushStamp : S.brushIcon;
+  const head = kind === 'terrain' ? 'Terrain brush' : kind === 'region' ? 'Region brush' : kind === 'stamp' ? 'Stamp' : 'Feature icon';
   const swatch = (o) => (kind === 'icon')
     ? `<span class="swatch glyph-sw">${o.glyph && TERRAIN_ICONS[o.glyph] ? terrainGlyph(o.glyph, { size: 16 }) : ''}</span>`
-    : `<span class="swatch" style="background:${o.color}"></span>`;
+    : (kind === 'stamp')
+      ? `<span class="swatch glyph-sw" style="background:${COIN[o.stamp].base};color:#f3ead6;border-radius:50%;border:1px solid ${COIN[o.stamp].ring}">${overlayGlyph(o.stamp, { size: 15 })}</span>`
+      : `<span class="swatch" style="background:${o.color}"></span>`;
   const el = document.createElement('div');
   el.id = 'brush-menu'; el.className = 'brush-menu';
   el.setAttribute('role', 'menu');
@@ -309,6 +326,7 @@ function openBrushMenu(kind, anchorBtn) {
     const b = e.target.closest('[data-brush]'); if (!b) return;
     if (kind === 'terrain') S.brushTerrain = b.dataset.brush;
     else if (kind === 'region') S.brushRegion = b.dataset.brush;
+    else if (kind === 'stamp') S.brushStamp = b.dataset.brush;
     else S.brushIcon = b.dataset.brush;
     closeBrushMenu();
     buildTools(); // refresh the swatch / glyph on the tool button
@@ -538,15 +556,22 @@ function buildHex(col, row) {
   };
 }
 
-// A stamp: an aged copper disc with a cream engraved emblem — a reddish copper for
-// sites, a warmer golden copper for settlements. Subtle inner rim for a coin feel.
-const STAMP = {
-  site: { base: '#a86a48', ring: '#6f4530', rim: '#c08a63' },
-  settlement: { base: '#b98a4c', ring: '#7a5a30', rim: '#d1a86a' },
+// A stamp: an aged disc with a cream engraved emblem. One palette drives both the
+// data-bearing corner badges (site / settlement) and the centre marker coins
+// (party + the visual indicators). Subtle inner rim gives each a coin feel.
+const COIN = {
+  site:       { base: '#a86a48', ring: '#6f4530', rim: '#c08a63' }, // reddish copper
+  settlement: { base: '#b98a4c', ring: '#7a5a30', rim: '#d1a86a' }, // golden copper
+  party:      { base: '#8f322c', ring: '#5e211d', rim: '#b0554e' }, // deep blood red
+  treasure:   { base: '#b8892f', ring: '#7a5a1e', rim: '#d4ab5c' }, // gold
+  warning:    { base: '#6b6f73', ring: '#45484b', rim: '#909599' }, // bone / slate
+  objective:  { base: '#c9a227', ring: '#8a6f16', rim: '#e3c257' }, // bright gold
+  camp:       { base: '#4f7a52', ring: '#325336', rim: '#74a077' }, // green
+  rumor:      { base: '#4d6a8a', ring: '#324a66', rim: '#7290b0' }, // blue
 };
 function badge(x, y, kind, count) {
   const s = SIZE * 0.36, r = s / 2 + 1, c = s / 2, ink = '#f3ead6';
-  const t = STAMP[kind] || STAMP.site;
+  const t = COIN[kind] || COIN.site;
   const countMark = count > 1
     ? `<text x="${(s + 1).toFixed(1)}" y="${(s * 0.35).toFixed(1)}" text-anchor="middle" font-size="${(s * 0.62).toFixed(1)}" font-weight="700" fill="${ink}" stroke="${t.ring}" stroke-width="0.7" paint-order="stroke">×${count}</text>`
     : '';
@@ -954,11 +979,16 @@ function drawOverlay() {
     const w = Math.abs(marquee.x1 - marquee.x0), h = Math.abs(marquee.y1 - marquee.y0);
     s += `<rect class="marquee" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>`;
   }
+  const markersByHex = {};
   (S.atlas.markers || []).forEach((m) => {
-    const { col, row } = parseId(m.hexId);
+    if (m && m.hexId) (markersByHex[m.hexId] || (markersByHex[m.hexId] = [])).push(m);
+  });
+  Object.keys(markersByHex).forEach((id) => {
+    const { col, row } = parseId(id);
     if (col < 0 || row < 0 || col >= S.atlas.cols || row >= S.atlas.rows) return;
     const { x, y } = hexCenter(col, row, SIZE);
-    s += markerGlyph(m, x, y);
+    const ms = markersByHex[id], gap = SIZE * 0.5, x0 = x - gap * (ms.length - 1) / 2;
+    ms.forEach((m, i) => { s += markerGlyph(m.type, x0 + i * gap, y); });
   });
   if (S.tool === 'measure' && measure.a) {
     const A = parseId(measure.a); const pa = hexCenter(A.col, A.row, SIZE);
@@ -972,14 +1002,16 @@ function drawOverlay() {
   ov.innerHTML = s;
 }
 
-function markerGlyph(m, x, y) {
-  const sz = SIZE * 0.62;
-  const color = m.type === 'party' ? '#8f322c' : 'var(--accent)'; // deep, muted blood red (palette-consistent)
-  // A filled pin with a white keyline + white dot so it reads on any terrain.
-  return `<g transform="translate(${(x - sz / 2).toFixed(1)},${(y - sz).toFixed(1)})">` +
-    `<g transform="scale(${(sz / 24).toFixed(3)})" fill="${color}" stroke="#ffffff" stroke-width="1.3" stroke-linejoin="round">` +
-    `<path d="M12 22s6.5-6.1 6.5-11.5a6.5 6.5 0 0 0-13 0C5.5 15.9 12 22 12 22z"/>` +
-    `<circle cx="12" cy="10.5" r="2.4" fill="#ffffff" stroke="none"/></g></g>`;
+// A centre marker coin (party + the visual indicators), same coin language as the
+// site/settlement corner badges but centred, so every stamp reads as one family.
+function markerGlyph(type, x, y) {
+  const s = SIZE * 0.46, r = s / 2 + 1.5, c = s / 2, ink = '#f3ead6';
+  const t = COIN[type] || COIN.party;
+  return `<g transform="translate(${(x - s / 2).toFixed(1)},${(y - s / 2).toFixed(1)})" style="color:${ink}">` +
+    `<circle cx="${c}" cy="${c}" r="${r}" fill="${t.base}" stroke="${t.ring}" stroke-width="1"/>` +
+    `<circle cx="${c}" cy="${c}" r="${(r - 1.1).toFixed(2)}" fill="none" stroke="${t.rim}" stroke-width="0.6" opacity="0.7"/>` +
+    `<g transform="translate(${(s * 0.16).toFixed(2)},${(s * 0.16).toFixed(2)}) scale(${(s * 0.68 / 24).toFixed(3)})">` +
+    overlayGlyph(type, { size: 24 }) + `</g></g>`;
 }
 
 function parseId(id) {
@@ -1128,7 +1160,7 @@ function wirePointer() {
 function paintHex(id, allowToggle) {
   // Canon hexes are a starting point, not a cage — every tool paints them freely
   // (the ★ just marks what shipped as canon). The marker is still its own case.
-  if (S.tool === 'marker') { if (allowToggle) toggleParty(id); return; }
+  if (S.tool === 'stamp') { applyStamp(id, allowToggle); return; }
   switch (S.tool) {
     case 'terrain': mutate(id, (h) => { h.terrain = S.brushTerrain; applyTerrainIcon(h); }); break;
     case 'region': mutate(id, (h) => { h.region = S.brushRegion; }); break;
@@ -1138,10 +1170,35 @@ function paintHex(id, allowToggle) {
       else if (S.brushIcon === 'none') { h.icon = ''; h.iconPinned = true; }
       else { h.icon = S.brushIcon; h.iconPinned = true; }
     }); break;
-    case 'settlement': mutate(id, (h) => stampPlace(h, 'settlements', allowToggle)); break;
-    case 'site': mutate(id, (h) => stampPlace(h, 'sites', allowToggle)); break;
     case 'erase': eraseHex(id); break;
   }
+}
+
+// Route a stamp onto a hex by the currently-selected stamp kind. Settlement and
+// site carry rolled WAG data (on the hex record); party is the single moving
+// token; the rest are lightweight visual markers (one per hex, toggle on click).
+function applyStamp(id, allowToggle) {
+  const kind = S.brushStamp;
+  if (kind === 'settlement') return mutate(id, (h) => stampPlace(h, 'settlements', allowToggle));
+  if (kind === 'site') return mutate(id, (h) => stampPlace(h, 'sites', allowToggle));
+  if (kind === 'party') { if (allowToggle) toggleParty(id); return; }
+  toggleMarker(id, kind, allowToggle);
+}
+
+// A visual map marker (treasure, warning, objective, camp, rumor): one per hex per
+// kind. A deliberate click toggles it off if present; dragging only ever adds.
+function toggleMarker(id, type, allowToggle) {
+  const list = S.atlas.markers || (S.atlas.markers = []);
+  const existing = list.find((m) => m.type === type && m.hexId === id);
+  if (existing) {
+    if (!allowToggle) return;                          // dragging over it: leave as-is
+    S.atlas.markers = list.filter((m) => m !== existing); // click to remove
+  } else {
+    list.push({ type, hexId: id, label: (STAMP_ORDER.find((o) => o.v === type) || {}).label || type });
+  }
+  persistConfig();
+  drawOverlay();
+  recordChange();
 }
 
 // Stamp a WAG place onto a hex. A deliberate click on a hex holding exactly one of
@@ -1625,7 +1682,7 @@ function wireEvents() {
     const key = t.dataset.tool;
     // Terrain / region / icon carry a brush: clicking the tool opens a picker
     // anchored to the button. Clicking the already-active brush tool toggles it.
-    if (key === 'terrain' || key === 'region' || key === 'icon') {
+    if (key === 'terrain' || key === 'region' || key === 'icon' || key === 'stamp') {
       const wasActive = S.tool === key;
       const menuWasOpen = brushMenuKind === key;
       setTool(key); // rebuilds the rail, so re-query the button afterwards
@@ -1701,7 +1758,7 @@ function wireEvents() {
       return;
     }
     if (e.target.matches('input,textarea,select')) return;
-    const map = { v: 'inspect', t: 'terrain', r: 'region', s: 'settlement', d: 'site', m: 'marker', e: 'erase' };
+    const map = { v: 'inspect', t: 'terrain', r: 'region', s: 'stamp', e: 'erase' };
     if (map[e.key]) setTool(map[e.key]);
     if (e.key === 'g' && S.selected) { onInspectorClick({ target: mkFakeBtn('generate') }); }
     if (e.key === 'Escape') { if ($('#modal')) closeModal(); else setSelected(null); }
