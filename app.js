@@ -224,10 +224,10 @@ function renderConn() {
     `<button class="btn small ghost" data-action="new-map" title="Start a blank grid to build a map from scratch (no terrain, no content)">New Map</button>` +
     `<button class="btn small ghost" data-action="random" title="Generate a random terrain map (content stays blank)">Random Map</button>` +
     `<button class="btn small ghost" data-action="import-map" title="Import an image and convert it to native hexes">Map Image</button>` +
-    `<button class="btn small ghost" data-action="theme" title="Theme: light / dark (shared with the site)">${THEME_LABEL[S.theme]}</button>` +
     `<button class="btn small ghost" data-action="save-image" title="Save the map as a PNG or SVG image">Save Image</button>` +
     `<button class="btn small ghost" data-action="export">Export</button>` +
-    `<button class="btn small ghost" data-action="import">Import</button>`;
+    `<button class="btn small ghost" data-action="import">Import</button>` +
+    `<button class="btn small ghost" data-action="theme" title="Theme: light / dark (shared with the site)">${THEME_LABEL[S.theme]}</button>`;
 }
 
 // ---- tools rail -----------------------------------------------------------
