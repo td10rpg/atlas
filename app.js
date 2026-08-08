@@ -1692,6 +1692,28 @@ function renderInspector() {
 
   // Reflect the just-rendered notes tab.
   syncNotesTab();
+  // Size the WAG place-result fields to their content (up to 5 lines, then scroll).
+  growAllPlaceFields();
+}
+
+// Auto-size a WAG place-result textarea (Tables G–H settlements, I–L sites) to fit
+// its content up to five lines; beyond that it scrolls. Keeps a ~2-line minimum so
+// short results aren't cramped. Box model is border-box (see the global reset).
+const PLACE_FIELD_MAX_LINES = 5, PLACE_FIELD_MIN_LINES = 2;
+function growPlaceField(el) {
+  const cs = getComputedStyle(el);
+  const line = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.42;
+  const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  const bord = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+  const maxH = Math.ceil(line * PLACE_FIELD_MAX_LINES + pad + bord);
+  const minH = Math.ceil(line * PLACE_FIELD_MIN_LINES + pad + bord);
+  el.style.height = 'auto';
+  const fit = el.scrollHeight + bord;                 // scrollHeight = content+padding; add border for border-box
+  el.style.height = Math.min(Math.max(fit, minH), maxH) + 'px';
+  el.style.overflowY = fit > maxH ? 'auto' : 'hidden';
+}
+function growAllPlaceFields() {
+  inspectorEl.querySelectorAll('.place-field').forEach(growPlaceField);
 }
 
 // Sites and settlements are arrays of named, editable places (backlog 9 + 12). A
@@ -1836,6 +1858,7 @@ function onInspectorInput(e) {
   if (!S.selected) return;
   const id = S.selected;
   if (t.dataset && t.dataset.place) {
+    if (t.classList.contains('place-field')) growPlaceField(t); // keep height in step as they type
     const hx = ensureHex(S.atlas, id);
     const arr = t.dataset.place === 'site' ? hx.sites : hx.settlements;
     const i = +t.dataset.idx;
