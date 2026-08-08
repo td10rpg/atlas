@@ -1892,6 +1892,11 @@ function wireEvents() {
   inspectorEl.addEventListener('click', onInspectorClick);
   inspectorEl.addEventListener('change', onInspectorChange);
   inspectorEl.addEventListener('input', onInspectorInput);
+  // Enter commits a single-line field (hex name, place names) — blur applies it and
+  // moves on. Textareas (multi-line place results, notes) keep Enter for newlines.
+  inspectorEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); e.target.blur(); }
+  });
 
   toolsEl.addEventListener('click', (e) => {
     const t = e.target.closest('.tool');
@@ -1961,6 +1966,7 @@ function wireEvents() {
     saveTimers['atlas-name'] = setTimeout(persistConfig, 400);
     recordChange();
   });
+  nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); } });
 
   importInput.addEventListener('change', onImportFile);
 
