@@ -15,14 +15,13 @@ export const TERRAIN_ICONS = {
   },
   jungle: {
     label: 'Jungle (palm)',
-    // Tropical palm — for the jungle side of a "Forest or Jungle" hex. A gently
-    // leaning filled trunk with a crown of five drooping fronds and two coconuts.
-    svg: '<path fill="currentColor" stroke="none" d="M11.3 8.4c.2 4.2.5 8.3 1 12.6h1.5c-.4-4.3-.6-8.4-.5-12.6z"/>' +
-      '<path d="M12 8c-2.6-2-5.6-2.2-8 .3M12 8c2.6-2 5.6-2.2 8 .3' +
-      'M12 8c-2-2.6-4.5-3.3-7-2.5M12 8c2-2.6 4.5-3.3 7-2.5' +
-      'M12 8c0-2.3.1-3.6.6-5"/>' +
-      '<circle cx="10.6" cy="9" r=".95" fill="currentColor" stroke="none"/>' +
-      '<circle cx="13.4" cy="9" r=".95" fill="currentColor" stroke="none"/>',
+    // Tropical palm — solid-fill (inspired by the reference r3c3): a crown of seven
+    // drooping fronds over a straight trunk, with three coconuts under the crown.
+    svg: '<path fill="currentColor" stroke="none" d="M11.5 5.8Q5.9 6.6 2.6 10.6Q6.6 8.6 12.5 8.6ZM12.2 5.7Q8.2 4.6 4.6 6.2Q7.9 6.7 11.8 8.7ZM12.9 6.1Q10.4 4.0 7.4 3.4Q9.2 5.5 11.1 8.3ZM13.4 7.2Q13.0 4.4 12.0 2.1Q11.0 4.4 10.6 7.2ZM12.9 8.3Q14.8 5.5 16.6 3.4Q13.6 4.0 11.1 6.1ZM12.2 8.7Q16.1 6.7 19.4 6.2Q15.8 4.6 11.8 5.7ZM11.5 8.6Q17.4 8.6 21.4 10.6Q18.1 6.6 12.5 5.8Z"/>' +
+      '<path fill="currentColor" stroke="none" d="M11.1 8.6h1.8l.5 12.4h-2.8z"/>' +
+      '<circle cx="10.5" cy="9" r="1" fill="currentColor" stroke="none"/>' +
+      '<circle cx="13.5" cy="9" r="1" fill="currentColor" stroke="none"/>' +
+      '<circle cx="12" cy="9.6" r="1" fill="currentColor" stroke="none"/>',
   },
   mountain: {
     label: 'Mountains',
