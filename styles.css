@@ -390,7 +390,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .landing-card label.check { display: flex; align-items: center; gap: 8px; margin: 4px 0 14px; font-size: 13px; color: var(--ink-dim); }
 
 .toast {
-  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%);
+  position: absolute; left: 50%; bottom: 58px; transform: translateX(-50%);
   max-width: min(90%, 560px); text-align: center;
   background: var(--panel-2); border: 1px solid var(--line); color: var(--ink);
   padding: 9px 16px; border-radius: 20px; font-size: 13px; box-shadow: var(--shadow);
