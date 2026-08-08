@@ -15,10 +15,14 @@ export const TERRAIN_ICONS = {
   },
   jungle: {
     label: 'Jungle (palm)',
-    // Tropical palm — for the jungle side of a "Forest or Jungle" hex.
-    svg: '<path d="M12 9C8.5 7.5 5.5 8.5 4 11.5M12 9C15.5 7.5 18.5 8.5 20 11.5M12 9C9.5 6.5 7.5 6 6 7M12 9C14.5 6.5 16.5 6 18 7M12 9C11.6 6 11.8 5 12 4"/>' +
-      '<path fill="currentColor" stroke="none" d="M11 20C11.2 15 11.5 11 11.8 9.3L12.2 9.3C12.5 11 12.8 15 13 20Z"/>' +
-      '<circle cx="12" cy="9" r="1.1" fill="currentColor" stroke="none"/>',
+    // Tropical palm — for the jungle side of a "Forest or Jungle" hex. A gently
+    // leaning filled trunk with a crown of five drooping fronds and two coconuts.
+    svg: '<path fill="currentColor" stroke="none" d="M11.3 8.4c.2 4.2.5 8.3 1 12.6h1.5c-.4-4.3-.6-8.4-.5-12.6z"/>' +
+      '<path d="M12 8c-2.6-2-5.6-2.2-8 .3M12 8c2.6-2 5.6-2.2 8 .3' +
+      'M12 8c-2-2.6-4.5-3.3-7-2.5M12 8c2-2.6 4.5-3.3 7-2.5' +
+      'M12 8c0-2.3.1-3.6.6-5"/>' +
+      '<circle cx="10.6" cy="9" r=".95" fill="currentColor" stroke="none"/>' +
+      '<circle cx="13.4" cy="9" r=".95" fill="currentColor" stroke="none"/>',
   },
   mountain: {
     label: 'Mountains',
