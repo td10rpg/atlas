@@ -81,6 +81,33 @@ export const OVERLAY_ICONS = {
     label: 'Site of interest',
     svg: '<path d="M7 21V4l10 3-10 3"/><path d="M7 21v-4" fill="none"/>',
   },
+  party: {
+    label: 'Party',
+    svg: '<path d="M12 21s6-5.7 6-11a6 6 0 0 0-12 0c0 5.3 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  },
+  treasure: {
+    label: 'Treasure (X)',
+    svg: '<path d="M6 6l12 12M18 6L6 18"/>',
+  },
+  warning: {
+    label: 'Warning (skull)',
+    svg: '<path d="M12 4a7 7 0 0 0-4.2 12.6V19a1 1 0 0 0 1 1h.7v-1.8h1.3V20h1.4v-1.8h1.3V20h.7a1 1 0 0 0 1-1v-2.4A7 7 0 0 0 12 4z"/>' +
+      '<circle cx="9.4" cy="12" r="1.5" fill="currentColor" stroke="none"/>' +
+      '<circle cx="14.6" cy="12" r="1.5" fill="currentColor" stroke="none"/>' +
+      '<path d="M12 14.3l-1 1.9h2z" fill="currentColor" stroke="none"/>',
+  },
+  objective: {
+    label: 'Objective',
+    svg: '<path d="M12 4.4l2.2 4.6 5 .7-3.6 3.5.86 5-4.46-2.35L7.54 18.2l.86-5L4.8 9.7l5-.7z" fill="currentColor" stroke="none"/>',
+  },
+  camp: {
+    label: 'Camp',
+    svg: '<path d="M12 6L5 18h14z"/><path d="M12 6v12"/>',
+  },
+  rumor: {
+    label: 'Rumor',
+    svg: '<path d="M9.2 9.2a2.8 2.8 0 1 1 3.8 2.6c-.9.4-1.2 1-1.2 1.9"/><circle cx="11.8" cy="17" r="1" fill="currentColor" stroke="none"/>',
+  },
 };
 
 // A d10 glyph for the "roll" affordances.
