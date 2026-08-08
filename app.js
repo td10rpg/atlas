@@ -621,9 +621,10 @@ function renderMap() {
 // so it never becomes illegibly small or absurdly large.
 const LABEL_WORLD = SIZE * 0.5;              // natural font size in board units
 const LABEL_MIN_PX = 11, LABEL_MAX_PX = 28;  // apparent-size clamp
-// Party labels only appear once the map is somewhat close (fewer board units per
-// screen pixel = more zoomed in), so a crowded map isn't buried in names.
-const PARTY_LABEL_MAX_BPP = SIZE / 26;
+// Party labels only appear once the map is zoomed fairly close (fewer board units
+// per screen pixel = more zoomed in), so a crowded map isn't buried in names.
+// Higher divisor ⇒ must zoom closer before names show.
+const PARTY_LABEL_MAX_BPP = SIZE / 40;
 
 function labelFontBoardUnits() {
   const rect = mapEl.getBoundingClientRect();
@@ -1111,13 +1112,17 @@ function wirePointer() {
     try { mapEl.setPointerCapture(e.pointerId); } catch {}
     const hex = e.target.closest('.hex');
     const downId = hex ? hex.dataset.id : null;
+    // In the cursor tool, pressing on a hex that holds a party picks it up to drag.
+    const dragParty = (S.tool === 'inspect' && !e.shiftKey && downId) ? partyAt(downId) : null;
     // River traces freehand; Label/Measure click (drag pans); Inspect+Shift
-    // marquee-selects; other paint tools stamp on drag; Inspect pans.
+    // marquee-selects; a party under the cursor drags; other paint tools stamp on
+    // drag; Inspect pans.
     const mode = S.tool === 'river' ? 'river'
       : (S.tool === 'label' || S.tool === 'measure') ? S.tool
       : (S.tool === 'inspect' && e.shiftKey) ? 'marquee'
+      : dragParty ? 'party-drag'
       : ((S.tool !== 'inspect' && downId) ? 'paint' : 'pan');
-    pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId };
+    pointer = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, downId, moved: false, mode, last: downId, party: dragParty };
     if (mode === 'paint') paintHex(downId, true);
     if (mode === 'river') pointer.raw = [clampToBoard(clientToBoard(e.clientX, e.clientY))];
     else if (mode === 'marquee') { const [bx, by] = clientToBoard(e.clientX, e.clientY); marquee = { x0: bx, y0: by, x1: bx, y1: by }; }
@@ -1132,6 +1137,12 @@ function wirePointer() {
       // dragging on an existing label moves it
       const l = (S.atlas.labels || [])[pointer.labelIdx];
       if (l) { const [bx, by] = clientToBoard(e.clientX, e.clientY); l.x = bx; l.y = by; drawLabels(); }
+    } else if (pointer.mode === 'party-drag') {
+      // Follow the cursor hex-to-hex; the token snaps to each hex centre.
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const g = el && el.closest ? el.closest('.hex') : null;
+      const id = g ? g.dataset.id : null;
+      if (id && pointer.party && id !== pointer.party.hexId) { pointer.party.hexId = id; drawOverlay(); }
     } else if (pointer.mode === 'pan' || pointer.mode === 'label' || pointer.mode === 'measure') {
       pan(e.clientX - pointer.lx, e.clientY - pointer.ly);
     } else if (pointer.mode === 'river') {
@@ -1162,6 +1173,9 @@ function wirePointer() {
       if (pointer.moved && box) selectHexesInBox(box);
       else if (pointer.downId) toggleInSelection(pointer.downId);
       drawOverlay();
+    } else if (pointer.mode === 'party-drag') {
+      if (pointer.moved) { persistConfig(); drawOverlay(); recordChange(); toast('Party moved'); }
+      else setSelected(pointer.downId);
     } else if (pointer.mode === 'pan' && !pointer.moved && pointer.downId) {
       setSelected(pointer.downId);
     }
@@ -1270,6 +1284,9 @@ function removeParty(marker) {
   S.atlas.markers = (S.atlas.markers || []).filter((m) => m !== marker);
   persistConfig(); drawOverlay(); recordChange();
 }
+function partyAt(id) {
+  return (S.atlas.markers || []).find((m) => m.type === 'party' && m.hexId === id) || null;
+}
 
 // A little popover to name / recolour / remove a party, anchored at its hex.
 function closePartyEditor() {
@@ -1338,11 +1355,37 @@ function mutate(id, fn) {
   recordChange();
 }
 
+// Erase clears a hex fast: it removes any marker stamps (party, treasure, warning,
+// objective, camp, rumor) on the hex AND wipes the painted content (terrain, region,
+// icon, name, notes…) — but it deliberately preserves settlements/sites, which are
+// anchored to rolled WAG results, so a broad sweep never destroys that data.
 function eraseHex(id) {
-  delete S.atlas.hexes[id];
-  if (S.dir) store.removeHex(S.dir, id).catch(() => {});
+  let changed = false;
+
+  // 1) remove marker stamps on this hex
+  const list = S.atlas.markers || [];
+  const kept = list.filter((m) => m.hexId !== id);
+  if (kept.length !== list.length) { S.atlas.markers = kept; changed = true; }
+
+  // 2) clear the painted hex, keeping any WAG places
+  const h = S.atlas.hexes[id];
+  if (h) {
+    if (hasSite(h) || hasSettlement(h)) {
+      h.terrain = ''; h.region = ''; h.icon = ''; h.iconPinned = false;
+      h.name = ''; h.weather = ''; h.feature = ''; h.notes = ''; h.factions = [];
+      persistHex(id);          // still populated (has WAG places) → saved, not deleted
+    } else {
+      delete S.atlas.hexes[id];
+      if (S.dir) store.removeHex(S.dir, id).catch(() => {});
+      saveLocal();
+    }
+    changed = true;
+  }
+
+  if (!changed) return;
+  persistConfig();             // markers live in the config
   refreshHex(id);
-  saveLocal();
+  drawOverlay();               // reflect removed markers
   if (S.selected === id) renderInspector();
   renderHud();
   recordChange();
