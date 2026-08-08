@@ -85,7 +85,12 @@ export function normalizeCustomTables(raw) {
 export function normalizeMarkers(raw) {
   return (Array.isArray(raw) ? raw : [])
     .filter((m) => m && m.hexId && m.type)
-    .map((m) => ({ type: String(m.type), hexId: String(m.hexId), label: typeof m.label === 'string' ? m.label : '' }));
+    .map((m) => {
+      const out = { type: String(m.type), hexId: String(m.hexId), label: typeof m.label === 'string' ? m.label : '' };
+      // Party tokens carry a colour index (0-9) so multiple parties stay distinct.
+      if (Number.isFinite(+m.color)) out.color = Math.max(0, Math.min(9, Math.round(+m.color)));
+      return out;
+    });
 }
 
 export function getHex(atlas, id) {
