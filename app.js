@@ -624,7 +624,7 @@ const LABEL_MIN_PX = 11, LABEL_MAX_PX = 28;  // apparent-size clamp
 // Party labels only appear once the map is zoomed fairly close (fewer board units
 // per screen pixel = more zoomed in), so a crowded map isn't buried in names.
 // Higher divisor ⇒ must zoom closer before names show.
-const PARTY_LABEL_MAX_BPP = SIZE / 40;
+const PARTY_LABEL_MAX_BPP = SIZE / 60;
 
 function labelFontBoardUnits() {
   const rect = mapEl.getBoundingClientRect();
