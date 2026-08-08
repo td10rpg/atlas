@@ -495,17 +495,14 @@ function buildHex(col, row) {
   // grid and labels read over the water like a printed map.
   let base = `<polygon points="${pts}" fill="${fill}" fill-opacity="${fillOp}"/>`;
 
-  // The party marker (an overlay-layer pin) sits at the hex centre; when one is on
-  // this hex, drop the terrain glyph lower so the pin stacks above it rather than
-  // burying it.
-  const hasParty = (S.atlas.markers || []).some((m) => m && m.type === 'party' && m.hexId === id);
   // The terrain glyph goes on its own layer ABOVE the rivers (so a river passes
-  // behind the icon, not over it) but below the grid/stamps.
+  // behind the icon, not over it) but below the grid/stamps. It stays centred in
+  // the hex; marker coins (party etc.) ride the overlay layer above it.
   let glyph = '';
   if (rec && rec.icon && !isOcean) {
     const gs = SIZE * 0.64;
     const gx = cx - gs / 2;
-    const gy = cy - gs / 2 + (hasParty ? SIZE * 0.22 : 0) - (rec.name ? 3 : 0);
+    const gy = cy - gs / 2 - (rec.name ? 3 : 0);
     // The glyph takes a deeper shade of the hex's own REGION colour (not the terrain
     // colour), so a mountain on a blue region reads blue — never a clashing red. On
     // the light paper it darkens hard for contrast; on the dark map the near-full
