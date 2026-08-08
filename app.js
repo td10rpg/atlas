@@ -183,7 +183,7 @@ async function boot() {
   S.atlas = createStarterAtlas(true);
   S.dir = null;
   afterLoad();
-  toast('This is the Hinterlands—explore and edit it freely. Start your own any time: New folder, Random map, or a map image.', false, 7500);
+  toast('This is the Hinterlands—explore and edit it freely. Start your own any time with New map, Random map, or Map image.', false, 7500);
 }
 
 function startInMemory(msg) {
@@ -1071,9 +1071,17 @@ function applyView() {
   mapEl.setAttribute('viewBox', `${v.x.toFixed(1)} ${v.y.toFixed(1)} ${v.w.toFixed(1)} ${v.h.toFixed(1)}`);
   applyLabelScale(); // keep label apparent size within the legible clamp as zoom changes
 }
-function fitView() {
-  const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
+function fitView(attempt = 0) {
   const rect = mapWrap.getBoundingClientRect();
+  if (!(rect.width > 0 && rect.height > 0)) {
+    // The map container hasn't been laid out yet (e.g. an iframe still sizing on
+    // first paint). Retry shortly rather than computing an Infinity viewBox from a
+    // zero-size rect, which would leave the map blank until a resize. setTimeout
+    // (not rAF) so it still fires when the frame isn't compositing yet.
+    if (attempt < 100) setTimeout(() => fitView(attempt + 1), 50);
+    return;
+  }
+  const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
   const ar = rect.width / Math.max(1, rect.height);
   const pad = SIZE;
   const bw = w + pad, bh = h + pad;
@@ -2436,7 +2444,7 @@ async function doImportMap(cols) {
 let toastTimer;
 function toast(msg, isErr, dur = 2600) {
   let t = $('#toast');
-  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast'; mapWrap.appendChild(t); }
   t.textContent = msg;
   t.className = 'toast show' + (isErr ? ' err' : '');
   clearTimeout(toastTimer);
