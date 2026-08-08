@@ -569,6 +569,18 @@ const COIN = {
   camp:       { base: '#4f7a52', ring: '#325336', rim: '#74a077' }, // green
   rumor:      { base: '#4d6a8a', ring: '#324a66', rim: '#7290b0' }, // blue
 };
+// Up to 10 distinct party tokens, each a different colour. Emblems stay the pin,
+// so parties read as one kind; colour (and an optional label) tells them apart.
+const PARTY_COLORS = [
+  '#c0392b', '#2e86de', '#27ae60', '#e67e22', '#8e44ad',
+  '#16a085', '#d4267a', '#6d4c41', '#546e7a', '#b7950b',
+];
+const MAX_PARTIES = PARTY_COLORS.length;
+/** The coin palette {base,ring,rim} for a party colour index. */
+function partyCoin(i) {
+  const base = PARTY_COLORS[((i % MAX_PARTIES) + MAX_PARTIES) % MAX_PARTIES];
+  return { base, ring: darken(base, 0.34), rim: 'rgba(255,255,255,0.45)' };
+}
 function badge(x, y, kind, count) {
   const s = SIZE * 0.36, r = s / 2 + 1, c = s / 2, ink = '#f3ead6';
   const t = COIN[kind] || COIN.site;
@@ -595,7 +607,7 @@ function renderMap() {
   // Layers, bottom to top: hex fills, rivers, terrain glyphs (over the rivers),
   // the grid outlines + numbers, the stamps (over every line), free labels, then
   // the overlay (selection + markers + draw preview).
-  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="glyph-layer">${glyph}</g><g id="grid-layer">${top}</g><g id="stamp-layer">${stamps}</g><g id="label-layer"></g><g id="overlay"></g>`;
+  mapEl.innerHTML = `<g id="hex-layer">${base}</g><g id="river-layer"></g><g id="glyph-layer">${glyph}</g><g id="grid-layer">${top}</g><g id="stamp-layer">${stamps}</g><g id="label-layer"></g><g id="overlay"></g><g id="party-label-layer"></g>`;
   mapEl.classList.toggle('no-grid', !S.showGrid);
   mapEl.dataset.bw = w; mapEl.dataset.bh = h;
   drawRivers();
@@ -609,6 +621,9 @@ function renderMap() {
 // so it never becomes illegibly small or absurdly large.
 const LABEL_WORLD = SIZE * 0.5;              // natural font size in board units
 const LABEL_MIN_PX = 11, LABEL_MAX_PX = 28;  // apparent-size clamp
+// Party labels only appear once the map is somewhat close (fewer board units per
+// screen pixel = more zoomed in), so a crowded map isn't buried in names.
+const PARTY_LABEL_MAX_BPP = SIZE / 26;
 
 function labelFontBoardUnits() {
   const rect = mapEl.getBoundingClientRect();
@@ -618,11 +633,21 @@ function labelFontBoardUnits() {
 /** Keep the label layer's apparent font size within the legible clamp for the
  *  current zoom. Called on every view change (cheap: just two inherited styles). */
 function applyLabelScale() {
-  const layer = mapEl.querySelector('#label-layer');
-  if (!layer) return;
   const fs = labelFontBoardUnits();
-  layer.style.fontSize = fs.toFixed(2) + 'px';
-  layer.style.strokeWidth = (fs * 0.16).toFixed(2) + 'px';  // halo scales with the text
+  const layer = mapEl.querySelector('#label-layer');
+  if (layer) {
+    layer.style.fontSize = fs.toFixed(2) + 'px';
+    layer.style.strokeWidth = (fs * 0.16).toFixed(2) + 'px';  // halo scales with the text
+  }
+  const pll = mapEl.querySelector('#party-label-layer');
+  if (pll) {
+    const pfs = fs * 0.72;                                    // a touch smaller than free labels
+    pll.style.fontSize = pfs.toFixed(2) + 'px';
+    pll.style.strokeWidth = (pfs * 0.18).toFixed(2) + 'px';
+    const rect = mapEl.getBoundingClientRect();
+    const boardPerPx = rect.width ? (S.view.w / rect.width) : 1;
+    pll.style.display = boardPerPx <= PARTY_LABEL_MAX_BPP ? '' : 'none';  // zoom gate
+  }
 }
 function drawLabels() {
   const layer = mapEl.querySelector('#label-layer');
@@ -983,13 +1008,22 @@ function drawOverlay() {
   (S.atlas.markers || []).forEach((m) => {
     if (m && m.hexId) (markersByHex[m.hexId] || (markersByHex[m.hexId] = [])).push(m);
   });
+  let partyLabels = '';
   Object.keys(markersByHex).forEach((id) => {
     const { col, row } = parseId(id);
     if (col < 0 || row < 0 || col >= S.atlas.cols || row >= S.atlas.rows) return;
     const { x, y } = hexCenter(col, row, SIZE);
     const ms = markersByHex[id], gap = SIZE * 0.5, x0 = x - gap * (ms.length - 1) / 2;
-    ms.forEach((m, i) => { s += markerGlyph(m.type, x0 + i * gap, y); });
+    ms.forEach((m, i) => {
+      const mx = x0 + i * gap;
+      s += markerGlyph(m, mx, y);
+      if (m.type === 'party' && m.label && m.label.trim()) {
+        partyLabels += `<text class="party-label" x="${mx.toFixed(1)}" y="${(y + SIZE * 0.42).toFixed(1)}" text-anchor="middle" dominant-baseline="hanging">${escapeXml(m.label.trim())}</text>`;
+      }
+    });
   });
+  const pll = mapEl.querySelector('#party-label-layer');
+  if (pll) pll.innerHTML = partyLabels;
   if (S.tool === 'measure' && measure.a) {
     const A = parseId(measure.a); const pa = hexCenter(A.col, A.row, SIZE);
     const dot = (p) => `<circle class="measure-dot" cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5"/>`;
@@ -1000,18 +1034,21 @@ function drawOverlay() {
     }
   }
   ov.innerHTML = s;
+  applyLabelScale(); // size + zoom-gate the party labels just rendered
 }
 
 // A centre marker coin (party + the visual indicators), same coin language as the
 // site/settlement corner badges but centred, so every stamp reads as one family.
-function markerGlyph(type, x, y) {
+// Party tokens take their colour from the marker's colour index; all share the pin.
+function markerGlyph(m, x, y) {
   const s = SIZE * 0.46, r = s / 2 + 1.5, c = s / 2, ink = '#f3ead6';
-  const t = COIN[type] || COIN.party;
+  const t = m.type === 'party' ? partyCoin(m.color || 0) : (COIN[m.type] || COIN.party);
+  const emblem = m.type === 'party' ? 'party' : m.type;
   return `<g transform="translate(${(x - s / 2).toFixed(1)},${(y - s / 2).toFixed(1)})" style="color:${ink}">` +
     `<circle cx="${c}" cy="${c}" r="${r}" fill="${t.base}" stroke="${t.ring}" stroke-width="1"/>` +
     `<circle cx="${c}" cy="${c}" r="${(r - 1.1).toFixed(2)}" fill="none" stroke="${t.rim}" stroke-width="0.6" opacity="0.7"/>` +
     `<g transform="translate(${(s * 0.16).toFixed(2)},${(s * 0.16).toFixed(2)}) scale(${(s * 0.68 / 24).toFixed(3)})">` +
-    overlayGlyph(type, { size: 24 }) + `</g></g>`;
+    overlayGlyph(emblem, { size: 24 }) + `</g></g>`;
 }
 
 function parseId(id) {
@@ -1181,7 +1218,7 @@ function applyStamp(id, allowToggle) {
   const kind = S.brushStamp;
   if (kind === 'settlement') return mutate(id, (h) => stampPlace(h, 'settlements', allowToggle));
   if (kind === 'site') return mutate(id, (h) => stampPlace(h, 'sites', allowToggle));
-  if (kind === 'party') { if (allowToggle) toggleParty(id); return; }
+  if (kind === 'party') { placeParty(id, allowToggle); return; }
   toggleMarker(id, kind, allowToggle);
 }
 
@@ -1210,16 +1247,84 @@ function stampPlace(h, key, allowToggle) {
   arr.push(key === 'settlements' ? rollSettlement() : rollSite());
 }
 
-// The party marker: a single atlas-level overlay token. Click a hex to place it,
-// click its current hex to pick it up (backlog 16). Never touches hex records.
-function toggleParty(id) {
+// Parties: up to 10 atlas-level tokens, each a distinct colour. A deliberate click
+// on an empty hex adds the next party (and opens its editor to name it); a click on
+// a hex that already holds a party opens that party's editor (rename / recolour /
+// remove). Never touches hex records.
+function placeParty(id, allowToggle) {
+  if (!allowToggle) return;                          // parties are deliberate, never drag-painted
   const list = S.atlas.markers || (S.atlas.markers = []);
-  const m = list.find((x) => x.type === 'party');
-  if (m) { if (m.hexId === id) S.atlas.markers = list.filter((x) => x !== m); else m.hexId = id; }
-  else list.push({ type: 'party', hexId: id, label: 'Party' });
-  persistConfig();
-  drawOverlay();
-  recordChange();
+  const existing = list.find((m) => m.type === 'party' && m.hexId === id);
+  if (existing) { openPartyEditor(existing, id); return; }
+  const parties = list.filter((m) => m.type === 'party');
+  if (parties.length >= MAX_PARTIES) { toast(`Up to ${MAX_PARTIES} parties.`, true); return; }
+  const used = new Set(parties.map((m) => m.color || 0));
+  let color = 0; while (color < MAX_PARTIES && used.has(color)) color++;   // lowest free colour
+  const m = { type: 'party', hexId: id, label: '', color };
+  list.push(m);
+  persistConfig(); drawOverlay(); recordChange();
+  openPartyEditor(m, id);
+}
+
+function removeParty(marker) {
+  S.atlas.markers = (S.atlas.markers || []).filter((m) => m !== marker);
+  persistConfig(); drawOverlay(); recordChange();
+}
+
+// A little popover to name / recolour / remove a party, anchored at its hex.
+function closePartyEditor() {
+  const el = $('#party-editor'); if (el) el.remove();
+  document.removeEventListener('pointerdown', onPartyEditorOutside, true);
+}
+function onPartyEditorOutside(e) {
+  const el = $('#party-editor'); if (!el || el.contains(e.target)) return;
+  const inp = el.querySelector('#party-name'); if (inp) commitPartyName(inp);
+  closePartyEditor();
+}
+function commitPartyName(inp) {
+  const marker = inp._marker; if (!marker) return;
+  marker.label = inp.value.trim();
+  persistConfig(); drawOverlay(); recordChange();
+}
+function openPartyEditor(marker, hexId) {
+  closePartyEditor();
+  const el = document.createElement('div');
+  el.id = 'party-editor'; el.className = 'brush-menu party-editor'; el.setAttribute('role', 'dialog');
+  el.innerHTML =
+    `<div class="brush-menu-head">Party token</div>` +
+    `<input id="party-name" type="text" placeholder="Name (optional)…" spellcheck="false" />` +
+    `<div class="pe-colors">` +
+    PARTY_COLORS.map((_, i) =>
+      `<button class="pe-swatch${i === (marker.color || 0) ? ' active' : ''}" data-color="${i}" title="Colour ${i + 1}" style="background:${partyCoin(i).base}"></button>`).join('') +
+    `</div>` +
+    `<button class="brush-opt pe-remove" data-party-remove="1"><span class="brush-opt-label">✕ Remove party</span></button>`;
+  document.body.appendChild(el);
+  const inp = el.querySelector('#party-name');
+  inp._marker = marker; inp.value = marker.label || '';
+
+  // Anchor to the right of the hex, clamped into the viewport.
+  const g = mapEl.querySelector(`#hex-layer .hex[data-id="${hexId}"]`);
+  const r = g ? g.getBoundingClientRect() : { right: window.innerWidth / 2, top: window.innerHeight / 2 };
+  el.style.left = `${Math.max(8, Math.min(window.innerWidth - el.offsetWidth - 8, Math.round(r.right + 8)))}px`;
+  el.style.top = `${Math.max(8, Math.min(window.innerHeight - el.offsetHeight - 8, Math.round(r.top)))}px`;
+  inp.focus(); inp.select();
+
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitPartyName(inp); closePartyEditor(); }
+    else if (e.key === 'Escape') { e.preventDefault(); closePartyEditor(); }
+  });
+  el.addEventListener('click', (e) => {
+    const sw = e.target.closest('[data-color]');
+    if (sw) {
+      marker.color = +sw.dataset.color;
+      el.querySelectorAll('.pe-swatch').forEach((b) => b.classList.toggle('active', b === sw));
+      persistConfig(); drawOverlay(); recordChange();
+      inp.focus();
+      return;
+    }
+    if (e.target.closest('[data-party-remove]')) { removeParty(marker); closePartyEditor(); }
+  });
+  setTimeout(() => document.addEventListener('pointerdown', onPartyEditorOutside, true), 0);
 }
 
 /** Ensure the hex, mutate it, then persist + repaint + refresh the inspector. */
