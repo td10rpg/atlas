@@ -178,7 +178,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
 /* Rivers and the grid/label layer sit above the fills but must not eat clicks —
    the base .hex polygons are the hit targets. */
 #river-layer, #glyph-layer, #grid-layer, #stamp-layer, #label-layer, #overlay { pointer-events: none; }
-/* Free labels — serif, with a background-coloured halo so they read over any
+/* Free labels — serif, with a background-colored halo so they read over any
    terrain. Font size / stroke width are set on #label-layer per zoom (clamped). */
 .map-label { fill: var(--ink); stroke: var(--bg); paint-order: stroke; stroke-linejoin: round;
   font-family: var(--serif); font-weight: 600; }
@@ -225,7 +225,7 @@ input, select, textarea { font-family: inherit; color: inherit; }
   transition: width .2s; animation: busy-pulse 1.1s ease-in-out infinite; }
 @keyframes busy-pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
 .hex-top polygon { fill: none; stroke: var(--hex-line); stroke-width: 1; }  /* the grid outline, over rivers */
-#map.no-grid .hex-top polygon { stroke: none; }  /* hexes-off: colours join, no separation */
+#map.no-grid .hex-top polygon { stroke: none; }  /* hexes-off: colors join, no separation */
 .sel-outline { fill: none; stroke: var(--accent); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .marquee { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
 .hex-top .hex-label { fill: var(--ink-dim); opacity: .6; font-size: 8px; font-family: var(--sans); }

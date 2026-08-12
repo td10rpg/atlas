@@ -35,12 +35,12 @@
   glyph per hex); land terrain and region get a stable per-hex value jitter;
   unsurveyed land is softly tinted by its region so the five regions read as
   zones. *(Textured fills / feathered coastlines still possible later.)*
-- [ ] **R. River tool** — *shelved.* Tried several designs — hex-centre paths
+- [ ] **R. River tool** — *shelved.* Tried several designs — hex-center paths
   (lattice-snap → adjacent-hex winding → Chaikin-smoothed), then freehand
   drag-to-draw rendered as a tapered ribbon (bold, then restyled to a low-opacity
-  sea-coloured channel with a thin bank line). None sat right on the hex map: a
+  sea-colored channel with a thin bank line). None sat right on the hex map: a
   smooth free-curve reads as a different visual language than the quantized hexes,
-  and a hex-centre worm reads mechanical. Removed entirely for now to keep the map
+  and a hex-center worm reads mechanical. Removed entirely for now to keep the map
   clean. If revisited, the promising direction is **hex-edge routing** — rivers that
   follow the shared edges between hexes (the classic Worldographer/Hexographer look),
   drawn thin in the map's own line weight/palette so they belong to the grid by
@@ -55,8 +55,8 @@
   reachable (weight 1) while defaults keep their 1d10 odds. Stored in `atlas.json`
   (`customTables`), undo-aware. *(Weather/Sign/Discovery + Site/Settlement tables;
   Feature/Encounter tie to terrain flavor and are not yet editable.)*
-- [x] **5. Neighbour-aware terrain** — Generate / Roll-terrain now bias a hex's
-  terrain toward its revealed neighbours (continuity, ~39% adjacency vs ~14%
+- [x] **5. Neighbor-aware terrain** — Generate / Roll-terrain now bias a hex's
+  terrain toward its revealed neighbors (continuity, ~39% adjacency vs ~14%
   random). **The blend weight is a PLACEHOLDER** — drop in the canonical WAG
   terrain table (via item 4) to replace it; nothing invented is presented as canon.
 - [x] **6. Import a map → native hexes** — "Map image" imports any picture,
@@ -64,7 +64,7 @@
   content stays blank, refine with the brush. General version of the Hinterlands
   bake.
 - [x] **15. Random terrain map** — "Random map" fills the grid with coherent
-  terrain (grown via the neighbour-aware roll), content blank, respecting the
+  terrain (grown via the neighbor-aware roll), content blank, respecting the
   current grid size; content is still yours to survey.
 
 **All backlog items to date are done.** Open follow-ups noted inline: the
@@ -211,30 +211,30 @@ Implementation pointers:
 ## 19. Make regions a first-class Atlas concept (generalize)
 
 Regions are currently **hardcoded for the Hinterlands** in `wag.js › REGIONS`:
-each entry bundles a name, a colour, and a terrain palette (its `prefer` list).
+each entry bundles a name, a color, and a terrain palette (its `prefer` list).
 Two behaviors ride on that and are, for now, intentionally Hinterlands-specific:
 
-- **Region owns the hex fill.** On land, a hex is tinted by its region colour
+- **Region owns the hex fill.** On land, a hex is tinted by its region color
   whether or not it's been surveyed (surveyed hexes just a touch stronger), so the
   regions always read as zones; terrain is carried by the glyph, not the fill
   (`app.js › buildHex`). Region-less land (imported / random / Unassigned) still
-  falls back to its terrain colour.
+  falls back to its terrain color.
 - **WAG terrain is region-consistent.** A discovered hex only ever rolls a terrain
-  from its region's palette; neighbours bias for continuity but can never introduce
-  a foreign terrain (`wag.js › rollTerrainForHex`, `REGION_WEIGHT` / `NEIGHBOUR_BIAS`).
+  from its region's palette; neighbors bias for continuity but can never introduce
+  a foreign terrain (`wag.js › rollTerrainForHex`, `REGION_WEIGHT` / `NEIGHBOR_BIAS`).
 
 Generalize this into the main Atlas so any atlas — not just the Hinterlands — can
 define its own regions:
 
 - Move regions out of the WAG constant into **atlas data** (a `regions` list in
   `atlas.json`: `{ name, color, terrainPalette }`), editable like the WAG tables
-  (item 4) — add / rename / recolour regions and set each one's terrain palette.
+  (item 4) — add / rename / recolor regions and set each one's terrain palette.
 - A per-hex `region` already exists; wire the fill and the terrain roll to read the
   atlas's region definitions instead of the module constant.
-- Ties into item 5 (canonical WAG terrain table): the region palette + neighbour
+- Ties into item 5 (canonical WAG terrain table): the region palette + neighbor
   blend is the placeholder that the canonical table/procedure should replace; keep
   the "stay within the region's terrains" guarantee when it lands.
-- Ties into item 1 (td10.pw look): region colours should come from / harmonize with
+- Ties into item 1 (td10.pw look): region colors should come from / harmonize with
   the site palette once themed.
 
 ## 6. Import a map and convert it to native hexes
@@ -258,7 +258,7 @@ Implementation pointers:
   this **produces native hexes** from it. They share the grid-registration UI —
   build that once (origin/size/orientation calibration over an imported image)
   and use it for both.
-- Colour-sampling can use a `<canvas>` to read pixels under each hex centroid
+- Color-sampling can use a `<canvas>` to read pixels under each hex centroid
   (or an averaged patch); keep it optional and correctable — auto-terrain is a
   starting point, not the source of truth.
 - Ties into items 3 and 5: the imported/traced map is the honest neighbor data
