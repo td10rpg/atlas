@@ -1,0 +1,31 @@
+name: Rebuild td10.org
+
+# The public ATLAS at td10.org/atlas is baked into the Tiny d10 site at build
+# time: the site repo (td10rpg/td10) clones THIS repo and copies the app in.
+# A push here therefore doesn't reach the live site on its own — so this job
+# asks the site to rebuild, which re-clones this repo and redeploys.
+#
+# Requires a repo secret SITE_DEPLOY_TOKEN: a token that can run workflows in
+# td10rpg/td10 (fine-grained PAT, repo = td10rpg/td10, Actions: Read and write).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  rebuild-site:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the td10.org deploy
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::SITE_DEPLOY_TOKEN is not set. Add a fine-grained PAT" \
+                 "(repo td10rpg/td10, Actions: Read and write) as a repo secret" \
+                 "named SITE_DEPLOY_TOKEN. See .github/workflows/deploy-site.yml."
+            exit 1
+          fi
+          gh workflow run deploy.yml -R td10rpg/td10
+          echo "Requested a rebuild of td10rpg/td10 → td10.org."
