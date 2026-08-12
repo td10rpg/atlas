@@ -92,6 +92,7 @@ export async function saveConfig(dir, atlas) {
     labels: atlas.labels || [],
     regions: atlas.regions || [],
     customTables: atlas.customTables || {},
+    encounterIntensity: atlas.encounterIntensity || 'standard',
   };
   await writeTextFile(dir, CONFIG_FILE, JSON.stringify(cfg, null, 2));
 }

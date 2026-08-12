@@ -13,6 +13,7 @@ import {
 import {
   TERRAINS, rerollField, rollSite, rollSettlement, rollSiteFields, rollSettlementFields,
   EDITABLE_TABLES, defaultTable, setTableOverrides,
+  ENCOUNTER_INTENSITY, setEncounterIntensity,
 } from './wag.js';
 import {
   hexId, hexCenter, hexPoints, boardSize, neighbors, isPopulated, hasSite, hasSettlement,
@@ -196,6 +197,7 @@ function startInMemory(msg) {
 function afterLoad() {
   removeLanding();
   setTableOverrides(S.atlas.customTables || {}); // apply per-atlas WAG table edits (backlog 4)
+  setEncounterIntensity(S.atlas.encounterIntensity || 'standard'); // Table D occurrence
   setRegions(S.atlas.regions);                   // apply per-atlas regions (backlog 19)
   renderShell();
   renderMap();
@@ -1465,7 +1467,7 @@ function saveLocal() {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
     localStorage.setItem(LS_KEY, JSON.stringify({
-      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], regions: S.atlas.regions || [], customTables: S.atlas.customTables || {} },
+      config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], regions: S.atlas.regions || [], customTables: S.atlas.customTables || {}, encounterIntensity: S.atlas.encounterIntensity || 'standard' },
       hexes,
     }));
   } catch { /* quota or private mode—ignore */ }
@@ -1500,6 +1502,7 @@ function snapshot() {
     labels: clone(S.atlas.labels || []),
     regions: clone(S.atlas.regions || DEFAULT_REGIONS),
     customTables: clone(S.atlas.customTables || {}),
+    encounterIntensity: S.atlas.encounterIntensity || 'standard',
     hexes: clone(S.atlas.hexes || {}),
   };
 }
@@ -1525,6 +1528,7 @@ function applySnapshot(snap) {
   S.atlas.labels = clone(snap.labels || []);
   S.atlas.regions = clone(snap.regions || DEFAULT_REGIONS); setRegions(S.atlas.regions);
   S.atlas.customTables = clone(snap.customTables || {}); setTableOverrides(S.atlas.customTables);
+  S.atlas.encounterIntensity = snap.encounterIntensity || 'standard'; setEncounterIntensity(S.atlas.encounterIntensity);
   const newHexes = clone(snap.hexes);
   S.atlas.hexes = newHexes;
   if (S.dir) { // write only the hex files that changed; delete removed ones
@@ -1646,8 +1650,9 @@ function renderInspector() {
     const text = key === 'feature'
       ? (has ? `${escapeHtml(h.feature)}${h.featureDesc ? ` – <em>${escapeHtml(h.featureDesc)}</em>` : ''}` : '—')
       : (has ? escapeHtml(h[key]) : '—');
+    const headTag = key === 'encounter' ? encounterTag() : tableTag(tag, TABLE_FOR[key]);
     return `<div class="wagline ${has ? '' : 'empty'}">` +
-      `<div class="wl-head">${tableTag(tag, TABLE_FOR[key])}` +
+      `<div class="wl-head">${headTag}` +
       `<span class="wl-roll"><button class="iconbtn" data-action="reroll" data-field="${key}" title="Re-roll">${dieGlyph({ size: 15 })}</button></span></div>` +
       `<div class="wl-text">${text}</div></div>`;
   };
@@ -1722,7 +1727,15 @@ function growAllPlaceFields() {
 // in by hand. On a canon hex everything is read-only.
 // Which editable table (backlog 4) backs each survey line / place field. Lines
 // whose tag maps to a table get a clickable, editable label.
-const TABLE_FOR = { weather: 'weather', sign: 'sign', discovery: 'discovery' };
+const TABLE_FOR = { weather: 'weather', feature: 'feature', sign: 'sign', discovery: 'discovery' };
+// The encounter line's tag is composite: Table D (intensity, click to set) + Table E (plain).
+function encounterTag() {
+  const cur = S.atlas.encounterIntensity || 'standard';
+  const it = ENCOUNTER_INTENSITY.find((i) => i.key === cur) || ENCOUNTER_INTENSITY[1];
+  return `<span class="wl-tag">Encounter · ` +
+    `<button class="wl-tag-btn" data-action="edit-intensity" title="Encounter intensity – click to set">Table&nbsp;D · ${it.note}</button>` +
+    ` &amp; Table&nbsp;E</span>`;
+}
 function tableTag(label, tableKey) {
   return tableKey
     ? `<button class="wl-tag wl-tag-btn" data-action="edit-table" data-table="${tableKey}" title="Edit this table – add your own results">${label}</button>`
@@ -1792,6 +1805,7 @@ function onInspectorClick(e) {
 
   const act = btn.dataset.action;
   if (act === 'edit-table') { openTableEditor(btn.dataset.table); return; } // global; allowed on canon too
+  if (act === 'edit-intensity') { toggleIntensityPopover(btn); return; } // Table D: per-atlas encounter intensity
   const h = getHex(S.atlas, id) || emptyHex(id);
   const locked = false; // canon hexes are fully editable
   const idx = btn.dataset.idx != null ? +btn.dataset.idx : -1;
@@ -2101,7 +2115,7 @@ async function reconnect(handle) {
 function exportBundle() {
   const hexes = {};
   Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
-  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], regions: S.atlas.regions || [], customTables: S.atlas.customTables || {} }, hexes };
+  const data = { version: 1, config: { name: S.atlas.name, cols: S.atlas.cols, rows: S.atlas.rows, hexMiles: S.atlas.hexMiles, markers: S.atlas.markers || [], rivers: S.atlas.rivers || [], labels: S.atlas.labels || [], regions: S.atlas.regions || [], customTables: S.atlas.customTables || {}, encounterIntensity: S.atlas.encounterIntensity || 'standard' }, hexes };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -2312,9 +2326,9 @@ function renderTableModal() {
   const body = md
     ? `<div class="trows"><textarea class="tmd" data-md="1" spellcheck="false" placeholder="Paste or edit the table as Markdown…">${escapeHtml(rowsToMd(tableEdit.rows))}</textarea></div>`
     : `<div class="trows">${rows || '<p class="modal-note">No rows—add one.</p>'}</div>`;
-  const note = md
-    ? `Edit or paste a whole table in Markdown—one result per row. The leading <code>#</code> column is optional. Changes feed straight into rolling and are saved with this atlas.`
-    : `Edit results or add your own—they feed straight into rolling and re-rolling, and are saved with this atlas.`;
+  // One view-agnostic note (kept identical across Rows/Markdown so the card height
+  // doesn't change when you toggle). A leading # column in pasted Markdown is fine.
+  const note = `Edit the rows, or switch to Markdown to copy/paste a whole table—changes feed straight into rolling and are saved with this atlas.`;
   el.innerHTML =
     `<div class="modal-card" role="dialog" aria-label="Edit table">` +
       `<div class="modal-head"><h3>${escapeHtml(tableLabel(tableEdit.key))}${isCustom ? ' <span class="custom-tag">customised</span>' : ''}</h3>` +
@@ -2405,6 +2419,54 @@ function closeModal() {
   tableEdit = null;
   const el = $('#modal'); if (el) el.remove();
   renderInspector(); // refresh the "customised" hints on the tags
+}
+
+// ---- Table D: encounter intensity popover ---------------------------------
+// A small dialog anchored to the "Table D" tag on the encounter line. Click a
+// level to set it; it's saved per atlas and feeds the encounter occurrence roll.
+let intensityAnchor = null;
+function closeIntensityPopover() {
+  const el = $('#intensity-pop'); if (el) el.remove();
+  intensityAnchor = null;
+  document.removeEventListener('mousedown', onIntensityOutside, true);
+  document.removeEventListener('keydown', onIntensityKey);
+}
+function onIntensityOutside(e) {
+  const el = $('#intensity-pop'); if (!el) return;
+  if (el.contains(e.target) || (intensityAnchor && intensityAnchor.contains(e.target))) return;
+  closeIntensityPopover();
+}
+function onIntensityKey(e) { if (e.key === 'Escape') closeIntensityPopover(); }
+function toggleIntensityPopover(anchor) {
+  if ($('#intensity-pop')) { closeIntensityPopover(); return; } // toggle off
+  intensityAnchor = anchor;
+  const cur = S.atlas.encounterIntensity || 'standard';
+  const el = document.createElement('div');
+  el.id = 'intensity-pop'; el.className = 'intensity-pop';
+  el.innerHTML =
+    `<div class="ip-title">Encounter intensity</div>` +
+    ENCOUNTER_INTENSITY.map((i) =>
+      `<button class="ip-opt${i.key === cur ? ' active' : ''}" data-intensity="${i.key}">` +
+      `<span class="ip-label">${i.label}</span><span class="ip-note">${i.note}</span></button>`).join('') +
+    `<div class="ip-foot">How often an encounter occurs per hex.</div>`;
+  document.body.appendChild(el);
+  const r = anchor.getBoundingClientRect();
+  el.style.top = Math.min(r.bottom + 6, window.innerHeight - el.offsetHeight - 8) + 'px';
+  el.style.left = Math.max(8, Math.min(r.left, window.innerWidth - el.offsetWidth - 8)) + 'px';
+  el.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-intensity]'); if (!b) return;
+    const lvl = b.dataset.intensity;
+    S.atlas.encounterIntensity = lvl;
+    setEncounterIntensity(lvl);
+    persistConfig();
+    recordChange();
+    closeIntensityPopover();
+    renderInspector(); // refresh the Table D badge
+  });
+  setTimeout(() => {
+    document.addEventListener('mousedown', onIntensityOutside, true);
+    document.addEventListener('keydown', onIntensityKey);
+  }, 0);
 }
 
 // A promise-based confirmation modal, replacing native confirm(). Reuses the

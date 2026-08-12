@@ -158,9 +158,10 @@ export const FEATURE = [
 
 // Feature is terrain-agnostic in the canonical WAG (the per-terrain flavour bank is
 // archived in BACKLOG.md). terrainKey is accepted but unused, so callers don't change.
+// Honours per-atlas overrides (backlog 4) so an edited Table B feeds generation.
 export function rollFeature(_terrainKey) {
-  const row = rollTable(FEATURE);
-  return { roll: row.roll, name: row.name, desc: row.desc };
+  const row = weightedRow(effTable('feature'));
+  return { name: row.name, desc: row.desc };
 }
 
 // ---- Table C: Sign or Omen ------------------------------------------------
@@ -189,6 +190,22 @@ export const ENCOUNTER_CHECK = [
   { lo: 9, hi: 9,  name: 'Ambush',      detail: 'An encounter that has the party at a disadvantage—surprise, ground, or numbers.', encounter: true, count: 1, disadvantage: true },
   { lo: 10, hi: 10, name: 'Two things',  detail: 'Two encounters at once, or one that draws a second (roll Table E twice).', encounter: true, count: 2, disadvantage: false },
 ];
+
+// Encounter intensity — how often an encounter occurs per hex. This is the
+// canonical WAG check (quartz/static/tools/wag.html: CHECK = {low:5,standard:3,
+// high:2}); an encounter happens on a 1-in-die roll. Set per atlas; persists.
+export const ENCOUNTER_INTENSITY = [
+  { key: 'low',      label: 'Low',      die: 5, note: '1-in-5' },
+  { key: 'standard', label: 'Standard', die: 3, note: '1-in-3' },
+  { key: 'high',     label: 'High',     die: 2, note: '1-in-2' },
+];
+let ENC_INTENSITY = 'standard';
+/** Set the per-atlas encounter intensity (low | standard | high). */
+export function setEncounterIntensity(level) {
+  ENC_INTENSITY = ENCOUNTER_INTENSITY.some((i) => i.key === level) ? level : 'standard';
+}
+export function getEncounterIntensity() { return ENC_INTENSITY; }
+function intensityDie() { return (ENCOUNTER_INTENSITY.find((i) => i.key === ENC_INTENSITY) || ENCOUNTER_INTENSITY[1]).die; }
 
 // ---- Table E: Encounter ---------------------------------------------------
 // Canonical terrain packs (forest / hills / plains / desert / swamp) give the
@@ -240,8 +257,11 @@ const ENC_TERRAIN = {
 };
 
 export function rollEncounter(terrainKey) {
-  const check = rollTable(ENCOUNTER_CHECK);
-  if (!check.encounter) return { check, parties: [] };
+  // Table D: does an encounter occur? 1-in-{5,3,2} by the atlas's intensity.
+  if (d(intensityDie()) !== 1) return { check: ENCOUNTER_CHECK[0], parties: [] }; // "None"
+  // It happens — keep Table D's own 3:1:1 split of Encounter / Ambush / Two things.
+  const sev = d(5);
+  const check = sev <= 3 ? ENCOUNTER_CHECK[1] : (sev === 4 ? ENCOUNTER_CHECK[2] : ENCOUNTER_CHECK[3]);
   const bank = ENC_TERRAIN[terrainKey] || ENC_GENERIC;
   const parties = [];
   for (let i = 0; i < check.count; i++) parties.push(pick(bank));
@@ -358,6 +378,7 @@ export const TREASURE = [
 
 export const EDITABLE_TABLES = [
   { key: 'weather', label: 'Weather · Table A' },
+  { key: 'feature', label: 'Feature · Table B' },
   { key: 'sign', label: 'Sign or Omen · Table C' },
   { key: 'discovery', label: 'Discovery · Table F' },
   { key: 'settlementType', label: 'Settlement Type · Table G' },
@@ -368,7 +389,7 @@ export const EDITABLE_TABLES = [
   { key: 'treasure', label: 'Treasure · Table L' },
 ];
 const DEFAULT_TABLES = {
-  weather: WEATHER, sign: SIGN, discovery: DISCOVERY,
+  weather: WEATHER, feature: FEATURE, sign: SIGN, discovery: DISCOVERY,
   settlementType: SETTLEMENT_TYPE, settlementConflict: SETTLEMENT_CONFLICT,
   siteType: SITE_TYPE, siteCondition: SITE_CONDITION, opposition: OPPOSITION, treasure: TREASURE,
 };
