@@ -1733,7 +1733,7 @@ function encounterTag() {
   const cur = S.atlas.encounterIntensity || 'standard';
   const it = ENCOUNTER_INTENSITY.find((i) => i.key === cur) || ENCOUNTER_INTENSITY[1];
   return `<span class="wl-tag">Encounter · ` +
-    `<button class="wl-tag-btn" data-action="edit-intensity" title="Encounter intensity – click to set">Table&nbsp;D · ${it.note}</button>` +
+    `<button class="wl-tag-btn" data-action="edit-intensity" title="Encounter intensity: ${it.label} (${it.note}) – click to set">Table&nbsp;D (${it.label})</button>` +
     ` &amp; Table&nbsp;E</span>`;
 }
 function tableTag(label, tableKey) {
