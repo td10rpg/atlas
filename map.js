@@ -31,6 +31,7 @@ export function createAtlas(name = 'The Hinterlands') {
     labels: [],     // atlas-level overlay: [{ x, y, text }]—free text on the map
     regions: DEFAULT_REGIONS.map((r) => ({ name: r.name, color: r.color, prefer: [...r.prefer] })), // editable (backlog 19)
     customTables: {}, // per-atlas WAG table overrides: { tableKey: [{name, desc}] } (backlog 4)
+    encounterIntensity: 'standard', // Table D occurrence: low | standard | high
   };
 }
 
@@ -134,6 +135,7 @@ export function normalizeConfig(raw) {
     a.labels = normalizeLabels(raw.labels);
     a.regions = normalizeRegions(raw.regions);
     a.customTables = normalizeCustomTables(raw.customTables);
+    if (['low', 'standard', 'high'].includes(raw.encounterIntensity)) a.encounterIntensity = raw.encounterIntensity;
   }
   return a;
 }
