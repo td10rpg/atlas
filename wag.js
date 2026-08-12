@@ -256,15 +256,30 @@ const ENC_TERRAIN = {
   ],
 };
 
+// Table E is per-terrain: five terrains have their own pack; the rest share a
+// generic list. Each pack is an editable table (backlog 4) keyed like `encPlains`,
+// so a click on "Table E" edits the pack for that hex's terrain.
+const ENC_PACK_KEY = {
+  'Plains': 'encPlains',
+  'Forest or Jungle': 'encForest',
+  'Hills or Mountains': 'encHills',
+  'Desert': 'encDesert',
+  'Swamp or Wetlands': 'encSwamp',
+};
+/** The editable Table-E key for a terrain (falls back to the generic pack). */
+export function encounterTableKey(terrainKey) { return ENC_PACK_KEY[terrainKey] || 'encGeneric'; }
+
 export function rollEncounter(terrainKey) {
   // Table D: does an encounter occur? 1-in-{5,3,2} by the atlas's intensity.
   if (d(intensityDie()) !== 1) return { check: ENCOUNTER_CHECK[0], parties: [] }; // "None"
   // It happens — keep Table D's own 3:1:1 split of Encounter / Ambush / Two things.
   const sev = d(5);
   const check = sev <= 3 ? ENCOUNTER_CHECK[1] : (sev === 4 ? ENCOUNTER_CHECK[2] : ENCOUNTER_CHECK[3]);
-  const bank = ENC_TERRAIN[terrainKey] || ENC_GENERIC;
+  // Table E: the terrain's pack (honouring per-atlas edits), rows → result strings.
+  const bank = effTable(encounterTableKey(terrainKey)).map((r) => (r.desc ? `${r.name} – ${r.desc}` : r.name)).filter(Boolean);
+  const pool = bank.length ? bank : ENC_GENERIC;
   const parties = [];
-  for (let i = 0; i < check.count; i++) parties.push(pick(bank));
+  for (let i = 0; i < check.count; i++) parties.push(pick(pool));
   return { check, parties };
 }
 
@@ -387,11 +402,22 @@ export const EDITABLE_TABLES = [
   { key: 'siteCondition', label: 'Site Condition · Table J' },
   { key: 'opposition', label: 'Opposition · Table K' },
   { key: 'treasure', label: 'Treasure · Table L' },
+  // Table E — one editable pack per terrain (Coast/Tundra/Urban share the generic).
+  { key: 'encPlains',  label: 'Encounter · Table E (Plains)' },
+  { key: 'encForest',  label: 'Encounter · Table E (Forest or Jungle)' },
+  { key: 'encHills',   label: 'Encounter · Table E (Hills or Mountains)' },
+  { key: 'encDesert',  label: 'Encounter · Table E (Desert)' },
+  { key: 'encSwamp',   label: 'Encounter · Table E (Swamp or Wetlands)' },
+  { key: 'encGeneric', label: 'Encounter · Table E (generic)' },
 ];
+const encRows = (arr) => arr.map((n) => ({ name: n, desc: '' }));
 const DEFAULT_TABLES = {
   weather: WEATHER, feature: FEATURE, sign: SIGN, discovery: DISCOVERY,
   settlementType: SETTLEMENT_TYPE, settlementConflict: SETTLEMENT_CONFLICT,
   siteType: SITE_TYPE, siteCondition: SITE_CONDITION, opposition: OPPOSITION, treasure: TREASURE,
+  encPlains: encRows(ENC_TERRAIN['Plains']), encForest: encRows(ENC_TERRAIN['Forest or Jungle']),
+  encHills: encRows(ENC_TERRAIN['Hills or Mountains']), encDesert: encRows(ENC_TERRAIN['Desert']),
+  encSwamp: encRows(ENC_TERRAIN['Swamp or Wetlands']), encGeneric: encRows(ENC_GENERIC),
 };
 /** The default rows of a table as plain {name, desc} (for the editor). */
 export function defaultTable(key) {

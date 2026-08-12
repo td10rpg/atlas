@@ -13,7 +13,7 @@ import {
 import {
   TERRAINS, rerollField, rollSite, rollSettlement, rollSiteFields, rollSettlementFields,
   EDITABLE_TABLES, defaultTable, setTableOverrides,
-  ENCOUNTER_INTENSITY, setEncounterIntensity,
+  ENCOUNTER_INTENSITY, setEncounterIntensity, encounterTableKey,
 } from './wag.js';
 import {
   hexId, hexCenter, hexPoints, boardSize, neighbors, isPopulated, hasSite, hasSettlement,
@@ -1650,7 +1650,7 @@ function renderInspector() {
     const text = key === 'feature'
       ? (has ? `${escapeHtml(h.feature)}${h.featureDesc ? ` – <em>${escapeHtml(h.featureDesc)}</em>` : ''}` : '—')
       : (has ? escapeHtml(h[key]) : '—');
-    const headTag = key === 'encounter' ? encounterTag() : tableTag(tag, TABLE_FOR[key]);
+    const headTag = key === 'encounter' ? encounterTag(h) : tableTag(tag, TABLE_FOR[key]);
     return `<div class="wagline ${has ? '' : 'empty'}">` +
       `<div class="wl-head">${headTag}` +
       `<span class="wl-roll"><button class="iconbtn" data-action="reroll" data-field="${key}" title="Re-roll">${dieGlyph({ size: 15 })}</button></span></div>` +
@@ -1728,13 +1728,19 @@ function growAllPlaceFields() {
 // Which editable table (backlog 4) backs each survey line / place field. Lines
 // whose tag maps to a table get a clickable, editable label.
 const TABLE_FOR = { weather: 'weather', feature: 'feature', sign: 'sign', discovery: 'discovery' };
-// The encounter line's tag is composite: Table D (intensity, click to set) + Table E (plain).
-function encounterTag() {
+// The encounter line's tag is composite: Table D (intensity, click to set) and
+// Table E (edit the encounter pack for this hex's terrain). Both are links.
+function encounterTag(h) {
   const cur = S.atlas.encounterIntensity || 'standard';
   const it = ENCOUNTER_INTENSITY.find((i) => i.key === cur) || ENCOUNTER_INTENSITY[1];
+  const terr = h.terrain || '';
+  const eKey = encounterTableKey(terr);
+  const eWhich = terr || 'generic';
   return `<span class="wl-tag">Encounter · ` +
-    `<button class="wl-tag-btn" data-action="edit-intensity" title="Encounter intensity: ${it.label} (${it.note}) – click to set">Table&nbsp;D (${it.label})</button>` +
-    ` &amp; Table&nbsp;E</span>`;
+    `<button class="wl-tag wl-tag-btn" data-action="edit-intensity" title="Encounter intensity: ${it.label} (${it.note}) – click to set">Table&nbsp;D (${it.label})</button>` +
+    ` &amp; ` +
+    `<button class="wl-tag wl-tag-btn" data-action="edit-table" data-table="${eKey}" title="Encounter table for ${escapeHtml(eWhich)} – click to edit">Table&nbsp;E</button>` +
+    `</span>`;
 }
 function tableTag(label, tableKey) {
   return tableKey
