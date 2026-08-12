@@ -86,29 +86,29 @@ export function rollTerrain(regionName) {
   return pick(regionByName(regionName).prefer);
 }
 
-// Neighbour-aware terrain roll (backlog 5): a hex's terrain is biased toward the
-// terrains of its already-revealed neighbours, so ranges and coasts read as
+// Neighbor-aware terrain roll (backlog 5): a hex's terrain is biased toward the
+// terrains of its already-revealed neighbors, so ranges and coasts read as
 // continuous country rather than confetti. The base weighting is the region's
-// prefer list; each neighbour adds NEIGHBOUR_BIAS to its own terrain.
+// prefer list; each neighbor adds NEIGHBOR_BIAS to its own terrain.
 //
-// NOTE: NEIGHBOUR_BIAS and this blend are a PLACEHOLDER. The canonical WAG
+// NOTE: NEIGHBOR_BIAS and this blend are a PLACEHOLDER. The canonical WAG
 // terrain-generation table should replace these weights (see BACKLOG item 5); the
 // numbers here are wiring, not invented canon. Once the editable-tables work
 // (item 4) can hold a terrain table, point this at it.
-const NEIGHBOUR_BIAS = 3;
+const NEIGHBOR_BIAS = 3;
 const REGION_WEIGHT = 2; // each prefer entry counts this much, so the region dominates
-export function rollTerrainForHex(regionName, neighbourTerrains = []) {
+export function rollTerrainForHex(regionName, neighborTerrains = []) {
   const region = regionByName(regionName);
   const palette = new Set(region.prefer); // the only terrains this region may roll
   const weights = {};
   region.prefer.forEach((t) => { weights[t] = (weights[t] || 0) + REGION_WEIGHT; });
-  // Neighbours nudge for continuity, but only ever reinforce terrain that already
+  // Neighbors nudge for continuity, but only ever reinforce terrain that already
   // belongs to the region — they can never introduce a foreign terrain (e.g. an
-  // Ocean neighbour won't turn a Pine Expanse hex into sea). This keeps every
+  // Ocean neighbor won't turn a Pine Expanse hex into sea). This keeps every
   // WAG-discovered hex consistent with its region.
-  neighbourTerrains.filter(Boolean).forEach((t) => {
+  neighborTerrains.filter(Boolean).forEach((t) => {
     if (t === 'Urban' || !palette.has(t)) return;
-    weights[t] = (weights[t] || 0) + NEIGHBOUR_BIAS;
+    weights[t] = (weights[t] || 0) + NEIGHBOR_BIAS;
   });
   const entries = Object.entries(weights);
   if (!entries.length) return rollTerrain(regionName);
@@ -136,7 +136,7 @@ export const WEATHER = [
   { lo: 6, hi: 6,   name: 'Heavy rain or snow',    desc: 'Travel ½ speed; visibility ≤ ¼ mile.' },
   { lo: 7, hi: 7,   name: 'Thunderstorm or blizzard', desc: 'Survival check if unsheltered; visibility 100 ft.' },
   { lo: 8, hi: 8,   name: 'Heatwave or cold snap', desc: 'Fatigue: -1 Power or -1 Reflex.' },
-  { lo: 9, hi: 9,   name: 'Unnatural weather',     desc: 'Ash, coloured rain, whispers on the wind.' },
+  { lo: 9, hi: 9,   name: 'Unnatural weather',     desc: 'Ash, colored rain, whispers on the wind.' },
   { lo: 10, hi: 10, name: 'Weather shift',         desc: 'And at the worst possible time.' },
 ];
 
@@ -156,9 +156,9 @@ export const FEATURE = [
   { lo: 10, hi: 10, name: 'Climate feature',  desc: 'Wind corridor, frost hollow, fog basin, lightning-prone rise.' },
 ];
 
-// Feature is terrain-agnostic in the canonical WAG (the per-terrain flavour bank is
+// Feature is terrain-agnostic in the canonical WAG (the per-terrain flavor bank is
 // archived in BACKLOG.md). terrainKey is accepted but unused, so callers don't change.
-// Honours per-atlas overrides (backlog 4) so an edited Table B feeds generation.
+// Honors per-atlas overrides (backlog 4) so an edited Table B feeds generation.
 export function rollFeature(_terrainKey) {
   const row = weightedRow(effTable('feature'));
   return { name: row.name, desc: row.desc };
@@ -275,7 +275,7 @@ export function rollEncounter(terrainKey) {
   // It happens — keep Table D's own 3:1:1 split of Encounter / Ambush / Two things.
   const sev = d(5);
   const check = sev <= 3 ? ENCOUNTER_CHECK[1] : (sev === 4 ? ENCOUNTER_CHECK[2] : ENCOUNTER_CHECK[3]);
-  // Table E: the terrain's pack (honouring per-atlas edits), rows → result strings.
+  // Table E: the terrain's pack (honoring per-atlas edits), rows → result strings.
   const bank = effTable(encounterTableKey(terrainKey)).map((r) => (r.desc ? `${r.name} – ${r.desc}` : r.name)).filter(Boolean);
   const pool = bank.length ? bank : ENC_GENERIC;
   const parties = [];
@@ -438,7 +438,7 @@ function weightedRow(rows) {
   for (let i = 0; i < rows.length; i++) { r -= w[i]; if (r <= 0) return rows[i]; }
   return rows[rows.length - 1];
 }
-/** Roll a banded table by key (honouring overrides) and return "Name – desc". */
+/** Roll a banded table by key (honoring overrides) and return "Name – desc". */
 function rollLine(key) {
   const row = weightedRow(effTable(key));
   return row.desc ? `${row.name} – ${row.desc}` : row.name;

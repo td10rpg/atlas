@@ -36,7 +36,7 @@ const TERRAIN_COLOR = {
   'Desert': '#d9c07f', 'Urban': '#8f7a6a',
 };
 
-// The brand mark: a flat-top hex outline with the stronghold glyph at its centre —
+// The brand mark: a flat-top hex outline with the stronghold glyph at its center —
 // black-and-white line art that tints with currentColor, so it themes for free.
 const BRAND_SVG =
   '<path d="M22 12 17 20.66 7 20.66 2 12 7 3.34 17 3.34Z"/>' +
@@ -77,7 +77,7 @@ const S = {
   brushIcon: 'mountain',   // the feature-icon brush (paints a hex's glyph, not its terrain)
   brushStamp: 'settlement', // the selected stamp for the unified stamp tool
   showLabels: true,
-  showGrid: true,       // hex outlines on/off (off = colours join as continuous zones)
+  showGrid: true,       // hex outlines on/off (off = colors join as continuous zones)
   notesTab: 'write',
   theme: 'light',       // 'light' | 'dark' — mirrors the parent site (backlog 14)
   view: { x: 0, y: 0, w: 100, h: 100 },
@@ -370,7 +370,7 @@ function renderRegionModal() {
         `<span class="swatch" style="background:${TERRAIN_COLOR[t.key]}"></span>${escapeHtml(t.key)}</button>`;
     }).join('');
     return `<div class="region-row">` +
-      `<input type="color" class="region-color" data-rrow="${i}" value="${r.color}" title="Region colour"/>` +
+      `<input type="color" class="region-color" data-rrow="${i}" value="${r.color}" title="Region color"/>` +
       `<input class="region-name" data-rrow="${i}" value="${escapeHtml(r.name)}" placeholder="Region name" spellcheck="false"/>` +
       `<button class="iconbtn danger" data-ract="del" data-rrow="${i}" title="Remove region">✕</button>` +
       `<div class="region-palette">${chips}</div>` +
@@ -379,7 +379,7 @@ function renderRegionModal() {
   el.innerHTML =
     `<div class="modal-card" role="dialog" aria-label="Edit regions">` +
       `<div class="modal-head"><h3>Regions</h3><button class="btn small" data-ract="close">Done</button></div>` +
-      `<p class="modal-note">Regions tint the map and constrain WAG terrain (a hex only rolls terrains in its region's palette). Rename, recolour, toggle each region's terrains, add or remove regions. Renaming keeps existing hex assignments.</p>` +
+      `<p class="modal-note">Regions tint the map and constrain WAG terrain (a hex only rolls terrains in its region's palette). Rename, recolor, toggle each region's terrains, add or remove regions. Renaming keeps existing hex assignments.</p>` +
       `<div class="region-rows">${rows || '<p class="modal-note">No regions—add one.</p>'}</div>` +
       `<div class="modal-foot"><button class="btn small" data-ract="add">＋ Add region</button>` +
         `<button class="btn small ghost" data-ract="reset" title="Restore the Hinterlands regions">Reset to default</button></div>` +
@@ -466,18 +466,18 @@ function buildHex(col, row) {
   const terrColor = rec && rec.terrain ? TERRAIN_COLOR[rec.terrain] : null;
 
   // Naturalistic fills (backlog 8): open sea is a continuous teal expanse with no
-  // per-hex glyph. On land the REGION owns the fill colour — a hex keeps its region
+  // per-hex glyph. On land the REGION owns the fill color — a hex keeps its region
   // tint whether or not it's been surveyed, so the five regions always read as zones;
-  // terrain is carried by the glyph, not by recolouring the hex. A *surveyed* hex is
+  // terrain is carried by the glyph, not by recoloring the hex. A *surveyed* hex is
   // the SAME region hue, uniformly darkened by a fixed amount — nothing else changes
   // (same opacity), so across every region "surveyed" reads consistently as one shade
-  // deeper of that region's colour, never as a different colour. Land with no region
-  // (imported / random / Unassigned) falls back to its terrain colour. A small
-  // deterministic jitter keeps a zone from reading as one flat block of colour.
+  // deeper of that region's color, never as a different color. Land with no region
+  // (imported / random / Unassigned) falls back to its terrain color. A small
+  // deterministic jitter keeps a zone from reading as one flat block of color.
   let fill, fillOp;
   // Ocean is a FLAT 0.5 (no jitter) so it composites to exactly --river — a river
   // drawn over the sea is then invisible (seamless), and rivers use that same
-  // composited colour on land. Jitter here would leave a faint river ghost.
+  // composited color on land. Jitter here would leave a faint river ghost.
   // In light mode the translucent land fills read washed over the light paper, so
   // deepen them a notch (the palette is unchanged; ocean and dark mode are left be).
   const ld = (c) => isLightTheme() ? darken(c, 0.14) : c;
@@ -498,18 +498,18 @@ function buildHex(col, row) {
   let base = `<polygon points="${pts}" fill="${fill}" fill-opacity="${fillOp}"/>`;
 
   // The terrain glyph goes on its own layer ABOVE the rivers (so a river passes
-  // behind the icon, not over it) but below the grid/stamps. It stays centred in
+  // behind the icon, not over it) but below the grid/stamps. It stays centerd in
   // the hex; marker coins (party etc.) ride the overlay layer above it.
   let glyph = '';
   if (rec && rec.icon && !isOcean) {
     const gs = SIZE * 0.64;
     const gx = cx - gs / 2;
     const gy = cy - gs / 2 - (rec.name ? 3 : 0);
-    // The glyph takes a deeper shade of the hex's own REGION colour (not the terrain
-    // colour), so a mountain on a blue region reads blue — never a clashing red. On
+    // The glyph takes a deeper shade of the hex's own REGION color (not the terrain
+    // color), so a mountain on a blue region reads blue — never a clashing red. On
     // the light paper it darkens hard for contrast; on the dark map the near-full
     // region hue already stands out against the translucent fill. No region → fall
-    // back to the terrain colour.
+    // back to the terrain color.
     const inRegion = region && region.name !== 'Unassigned';
     const glyphColor = inRegion
       ? darken(region.color, isLightTheme() ? 0.5 : 0.12)
@@ -532,7 +532,7 @@ function buildHex(col, row) {
     top += `<text class="hex-label" x="${cx}" y="${(cy - SIZE * 0.58).toFixed(1)}" text-anchor="middle">${id}</text>`;
   }
   // Site and settlement stamps sit symmetrically in the two upper corners, on a
-  // dedicated layer drawn after EVERY grid line — otherwise a neighbouring hex's
+  // dedicated layer drawn after EVERY grid line — otherwise a neighboring hex's
   // line (rendered later) paints over a stamp near the shared edge. The hex NAME
   // rides this same top layer so it reads over the grid, not under it.
   let stamps = '';
@@ -556,7 +556,7 @@ function buildHex(col, row) {
 }
 
 // A stamp: an aged disc with a cream engraved emblem. One palette drives both the
-// data-bearing corner badges (site / settlement) and the centre marker coins
+// data-bearing corner badges (site / settlement) and the center marker coins
 // (party + the visual indicators). Subtle inner rim gives each a coin feel.
 const COIN = {
   site:       { base: '#a86a48', ring: '#6f4530', rim: '#c08a63' }, // reddish copper
@@ -568,14 +568,14 @@ const COIN = {
   camp:       { base: '#4f7a52', ring: '#325336', rim: '#74a077' }, // green
   rumor:      { base: '#4d6a8a', ring: '#324a66', rim: '#7290b0' }, // blue
 };
-// Up to 10 distinct party tokens, each a different colour. Emblems stay the pin,
-// so parties read as one kind; colour (and an optional label) tells them apart.
+// Up to 10 distinct party tokens, each a different color. Emblems stay the pin,
+// so parties read as one kind; color (and an optional label) tells them apart.
 const PARTY_COLORS = [
   '#c0392b', '#2e86de', '#27ae60', '#e67e22', '#8e44ad',
   '#16a085', '#d4267a', '#6d4c41', '#546e7a', '#b7950b',
 ];
 const MAX_PARTIES = PARTY_COLORS.length;
-/** The coin palette {base,ring,rim} for a party colour index. */
+/** The coin palette {base,ring,rim} for a party color index. */
 function partyCoin(i) {
   const base = PARTY_COLORS[((i % MAX_PARTIES) + MAX_PARTIES) % MAX_PARTIES];
   return { base, ring: darken(base, 0.34), rim: 'rgba(255,255,255,0.45)' };
@@ -676,7 +676,7 @@ function openLabelEditor(clientX, clientY) {
   editingLabel = idx;
   if (existing) drawLabels(); // hide the one being edited
 
-  // Anchor the field at the label's on-screen centre (new labels: the click), and
+  // Anchor the field at the label's on-screen center (new labels: the click), and
   // match the label's apparent font size, so it reads as editing in place.
   const rect = mapEl.getBoundingClientRect();
   const wrap = mapWrap.getBoundingClientRect();
@@ -788,9 +788,9 @@ function selectHexesInBox(box) {
 // The river follows the CELLS of a finer hex grid laid over the map: one sub-hex
 // per mile, so a 6-mile hex carries a 6× lattice (and it scales with the atlas's
 // hexMiles). A freehand stroke is "bucket-filled" onto the sub-hexes it crosses
-// and drawn through their centres — so it meanders like a hand-drawn river but
+// and drawn through their centers — so it meanders like a hand-drawn river but
 // still belongs to the grid, and a straight drag along a column of cells stays
-// straight (centres are colinear; snapping to vertices would zigzag).
+// straight (centers are colinear; snapping to vertices would zigzag).
 
 /** Radius of a sub-hex: SIZE / (miles per hex), so each sub-hex spans one mile. */
 function subHexR() { return SIZE / Math.max(1, Math.round(S.atlas.hexMiles || 6)); }
@@ -804,7 +804,7 @@ function axialRound(q, r) {
   return [rx, rz];
 }
 
-/** Snap a board point to the centre of the sub-hex cell that contains it (flat-top). */
+/** Snap a board point to the center of the sub-hex cell that contains it (flat-top). */
 function snapToSubCell(px, py) {
   const r = subHexR();
   const q = (2 / 3 * px) / r;
@@ -829,7 +829,7 @@ function movingAverage(pts, w) {
 /** Turn a raw freehand path into a clean, grid-snapped chain. The ORDER is the
  *  point: low-pass the raw stroke, simplify it down to a few anchors on the
  *  shape the user actually drew, and only THEN snap those anchors to sub-cell
- *  centres. Snapping a handful of well-separated points can't build a staircase,
+ *  centers. Snapping a handful of well-separated points can't build a staircase,
  *  so hand tremor never becomes a kink — no fragile per-wobble detection needed.
  *  A straight drag still simplifies to two colinear cells → a straight line. */
 function riverFromRaw(raw) {
@@ -921,11 +921,11 @@ function smoothPath(p) {
 function drawRivers() {
   const rl = mapEl.querySelector('#river-layer');
   if (!rl) return;
-  // Rendered OPAQUE in --river (the ocean colour already composited over the map
-  // background — see styles.css), so a river is the exact colour a rendered ocean
+  // Rendered OPAQUE in --river (the ocean color already composited over the map
+  // background — see styles.css), so a river is the exact color a rendered ocean
   // hex is, whatever terrain it crosses: it matches the sea on land and blends
   // seamlessly where it meets it. A semi-transparent river would tint with the
-  // land underneath and drift off-colour.
+  // land underneath and drift off-color.
   rl.innerHTML = (S.atlas.rivers || []).map((line) => {
     const d = smoothPath(line);
     return d ? `<path class="river" d="${d}"/>` : '';
@@ -1049,9 +1049,9 @@ function drawOverlay() {
   applyLabelScale(); // size + zoom-gate the party labels just rendered
 }
 
-// A centre marker coin (party + the visual indicators), same coin language as the
-// site/settlement corner badges but centred, so every stamp reads as one family.
-// Party tokens take their colour from the marker's colour index; all share the pin.
+// A center marker coin (party + the visual indicators), same coin language as the
+// site/settlement corner badges but centerd, so every stamp reads as one family.
+// Party tokens take their color from the marker's color index; all share the pin.
 function markerGlyph(m, x, y) {
   const s = SIZE * 0.46, r = s / 2 + 1.5, c = s / 2, ink = '#f3ead6';
   const t = m.type === 'party' ? partyCoin(m.color || 0) : (COIN[m.type] || COIN.party);
@@ -1067,8 +1067,8 @@ function parseId(id) {
   return { col: parseInt(id.slice(0, 2), 10) - 1, row: parseInt(id.slice(2), 10) - 1 };
 }
 
-/** The terrains of a hex's already-surveyed neighbours (for neighbour-aware rolls). */
-function neighbourTerrainsOf(id) {
+/** The terrains of a hex's already-surveyed neighbors (for neighbor-aware rolls). */
+function neighborTerrainsOf(id) {
   const { col, row } = parseId(id);
   return neighbors(col, row)
     .map((n) => { const h = getHex(S.atlas, hexId(n.col, n.row)); return h && h.terrain ? h.terrain : null; })
@@ -1157,7 +1157,7 @@ function wirePointer() {
       const l = (S.atlas.labels || [])[pointer.labelIdx];
       if (l) { const [bx, by] = clientToBoard(e.clientX, e.clientY); l.x = bx; l.y = by; drawLabels(); }
     } else if (pointer.mode === 'party-drag') {
-      // Follow the cursor hex-to-hex; the token snaps to each hex centre.
+      // Follow the cursor hex-to-hex; the token snaps to each hex center.
       const el = document.elementFromPoint(e.clientX, e.clientY);
       const g = el && el.closest ? el.closest('.hex') : null;
       const id = g ? g.dataset.id : null;
@@ -1235,7 +1235,7 @@ function paintHex(id, allowToggle, bx, by) {
     case 'terrain': mutate(id, (h) => { h.terrain = S.brushTerrain; applyTerrainIcon(h); }); break;
     case 'region': mutate(id, (h) => { h.region = S.brushRegion; }); break;
     case 'icon': mutate(id, (h) => {
-      // Set the hex's feature icon independent of its terrain (colour).
+      // Set the hex's feature icon independent of its terrain (color).
       if (S.brushIcon === 'auto') { h.iconPinned = false; applyTerrainIcon(h); }
       else if (S.brushIcon === 'none') { h.icon = ''; h.iconPinned = true; }
       else { h.icon = S.brushIcon; h.iconPinned = true; }
@@ -1280,9 +1280,9 @@ function stampPlace(h, key, allowToggle) {
   arr.push(key === 'settlements' ? rollSettlement() : rollSite());
 }
 
-// Parties: up to 10 atlas-level tokens, each a distinct colour. A deliberate click
+// Parties: up to 10 atlas-level tokens, each a distinct color. A deliberate click
 // on an empty hex adds the next party (and opens its editor to name it); a click on
-// a hex that already holds a party opens that party's editor (rename / recolour /
+// a hex that already holds a party opens that party's editor (rename / recolor /
 // remove). Never touches hex records.
 function placeParty(id, allowToggle) {
   if (!allowToggle) return;                          // parties are deliberate, never drag-painted
@@ -1292,7 +1292,7 @@ function placeParty(id, allowToggle) {
   const parties = list.filter((m) => m.type === 'party');
   if (parties.length >= MAX_PARTIES) { toast(`Up to ${MAX_PARTIES} parties.`, true); return; }
   const used = new Set(parties.map((m) => m.color || 0));
-  let color = 0; while (color < MAX_PARTIES && used.has(color)) color++;   // lowest free colour
+  let color = 0; while (color < MAX_PARTIES && used.has(color)) color++;   // lowest free color
   const m = { type: 'party', hexId: id, label: '', color };
   list.push(m);
   persistConfig(); drawOverlay(); recordChange();
@@ -1307,7 +1307,7 @@ function partyAt(id) {
   return (S.atlas.markers || []).find((m) => m.type === 'party' && m.hexId === id) || null;
 }
 
-// A little popover to name / recolour / remove a party, anchored at its hex.
+// A little popover to name / recolor / remove a party, anchored at its hex.
 function closePartyEditor() {
   const el = $('#party-editor'); if (el) el.remove();
   document.removeEventListener('pointerdown', onPartyEditorOutside, true);
@@ -1331,7 +1331,7 @@ function openPartyEditor(marker, hexId) {
     `<input id="party-name" type="text" placeholder="Name (optional)…" spellcheck="false" />` +
     `<div class="pe-colors">` +
     PARTY_COLORS.map((_, i) =>
-      `<button class="pe-swatch${i === (marker.color || 0) ? ' active' : ''}" data-color="${i}" title="Colour ${i + 1}" style="background:${partyCoin(i).base}"></button>`).join('') +
+      `<button class="pe-swatch${i === (marker.color || 0) ? ' active' : ''}" data-color="${i}" title="Color ${i + 1}" style="background:${partyCoin(i).base}"></button>`).join('') +
     `</div>` +
     `<button class="brush-opt pe-remove" data-party-remove="1"><span class="brush-opt-label">✕ Remove party</span></button>`;
   document.body.appendChild(el);
@@ -1379,7 +1379,7 @@ function mutate(id, fn) {
 // content (terrain, region, icon, name, notes…). Settlements/sites are anchored to
 // rolled WAG results and are never erased here.
 function eraseAt(id, bx, by) {
-  // Marker coins are drawn at the hex centre, fanned horizontally, at a zoom-
+  // Marker coins are drawn at the hex center, fanned horizontally, at a zoom-
   // independent board size — so hit-test the click point against them directly.
   const here = (S.atlas.markers || []).filter((m) => m.hexId === id);
   if (here.length && Number.isFinite(bx) && Number.isFinite(by)) {
@@ -1818,14 +1818,14 @@ function onInspectorClick(e) {
   switch (act) {
     case 'generate': {
       const hx = ensureHex(S.atlas, id);
-      if (!hx.terrain) hx.terrain = rollTerrainForHex(hx.region || 'Unassigned', neighbourTerrainsOf(id));
+      if (!hx.terrain) hx.terrain = rollTerrainForHex(hx.region || 'Unassigned', neighborTerrainsOf(id));
       Object.assign(hx, generateHex(hx.terrain)); // survey lines only; never touches places
       if (!locked) applyTerrainIcon(hx);
       commit(id); break;
     }
     case 'roll-terrain': {
       const hx = ensureHex(S.atlas, id);
-      hx.terrain = rollTerrainForHex(hx.region || 'Unassigned', neighbourTerrainsOf(id));
+      hx.terrain = rollTerrainForHex(hx.region || 'Unassigned', neighborTerrainsOf(id));
       applyTerrainIcon(hx);
       commit(id); break;
     }
@@ -2132,7 +2132,7 @@ function exportBundle() {
 
 // ---- map image export (PNG / SVG) -----------------------------------------
 // Renders the whole board (not the zoomed view) into a self-contained SVG — a
-// title and a scale bar baked in, CSS-variable colours resolved to concrete
+// title and a scale bar baked in, CSS-variable colors resolved to concrete
 // values and the styles inlined — so the file stands alone as a usable map.
 
 function downloadBlob(blob, filename) {
@@ -2337,7 +2337,7 @@ function renderTableModal() {
   const note = `Edit the rows, or switch to Markdown to copy/paste a whole table—changes feed straight into rolling and are saved with this atlas.`;
   el.innerHTML =
     `<div class="modal-card" role="dialog" aria-label="Edit table">` +
-      `<div class="modal-head"><h3>${escapeHtml(tableLabel(tableEdit.key))}${isCustom ? ' <span class="custom-tag">customised</span>' : ''}</h3>` +
+      `<div class="modal-head"><h3>${escapeHtml(tableLabel(tableEdit.key))}${isCustom ? ' <span class="custom-tag">customized</span>' : ''}</h3>` +
       `<div class="tabs"><button class="tab ${md ? '' : 'active'}" data-mact="view-rows">Rows</button>` +
       `<button class="tab ${md ? 'active' : ''}" data-mact="view-md">Markdown</button></div>` +
       `<button class="btn small" data-mact="close">Done</button></div>` +
@@ -2356,7 +2356,7 @@ function rowsToMd(rows) {
   rows.forEach((r, i) => out.push(`| ${i + 1} | ${esc(r.name)} | ${esc(r.desc)} |`));
   return out.join('\n');
 }
-/** Split one Markdown table line into trimmed cells (honours \| and <br>). */
+/** Split one Markdown table line into trimmed cells (honors \| and <br>). */
 function splitMdRow(line) {
   const s = line.trim().replace(/^\|/, '').replace(/\|$/, '');
   const cells = []; let cur = '';
@@ -2424,7 +2424,7 @@ function closeModal() {
   if (tableTimer) commitTable();
   tableEdit = null;
   const el = $('#modal'); if (el) el.remove();
-  renderInspector(); // refresh the "customised" hints on the tags
+  renderInspector(); // refresh the "customized" hints on the tags
 }
 
 // ---- Table D: encounter intensity popover ---------------------------------
@@ -2515,7 +2515,7 @@ function confirmModal({ title, body, choices, cancelLabel = 'Cancel' }) {
 }
 
 // ---- import a map image → native hexes (backlog 6) ------------------------
-// Sample the image per hex and give each hex the nearest terrain by colour. A
+// Sample the image per hex and give each hex the nearest terrain by color. A
 // general version of the Hinterlands conversion (scripts/gen-seed.mjs): terrain
 // only, content blank, refine with the paint brush after. Reference palette is
 // the WAG terrain-key hues; unmatched-dark (ink lines) leaves a hex blank.
@@ -2527,7 +2527,7 @@ const IMPORT_PALETTE = [
   { rgb: [217, 192, 127], t: 'Desert' }, { rgb: [169, 196, 214], t: 'Tundra' },
   { rgb: [245, 245, 245], t: 'Plains' }, { rgb: [20, 20, 20], t: '' },
 ];
-function classifyColour(r, g, b) {
+function classifyColor(r, g, b) {
   let best = IMPORT_PALETTE[0], bd = Infinity;
   for (const p of IMPORT_PALETTE) { const d = (p.rgb[0] - r) ** 2 + (p.rgb[1] - g) ** 2 + (p.rgb[2] - b) ** 2; if (d < bd) { bd = d; best = p; } }
   return best.t;
@@ -2552,7 +2552,7 @@ function openImportModal(img) {
   if (!el) { el = document.createElement('div'); el.id = 'modal'; el.className = 'modal'; document.body.appendChild(el); el.addEventListener('click', onModalClick); el.addEventListener('input', onModalInput); }
   el.innerHTML =
     `<div class="modal-card"><div class="modal-head"><h3>Import map → hexes</h3><button class="btn small" data-mact="imp-cancel">Cancel</button></div>` +
-    `<p class="modal-note">Each hex is sampled and given the nearest terrain—teal → coast, greens → forest / plains, brown &amp; grey → hills, tan → desert, pale blue → tundra. Survey content stays blank; refine terrain with the paint brush afterward.</p>` +
+    `<p class="modal-note">Each hex is sampled and given the nearest terrain—teal → coast, greens → forest / plains, brown &amp; gray → hills, tan → desert, pale blue → tundra. Survey content stays blank; refine terrain with the paint brush afterward.</p>` +
     `<div style="padding:10px 18px;text-align:center"><img id="imp-preview" alt="map preview" style="max-width:100%;max-height:42vh;border:1px solid var(--line);border-radius:8px" /></div>` +
     `<div class="modal-foot"><label>Columns <input type="number" id="imp-cols" min="4" max="60" value="26" style="width:56px" /></label>` +
     `<button class="btn primary" data-mact="imp-go">Convert to hexes</button></div></div>`;
@@ -2578,7 +2578,7 @@ function convertImageToAtlas(img, cols) {
       for (let dx = -2; dx <= 2; dx += 2) for (let dy = -2; dy <= 2; dy += 2) {
         const [rr, gg, bb] = at(Math.min(W - 1, Math.max(0, ix + dx)), Math.min(H - 1, Math.max(0, iy + dy))); R += rr; G += gg; B += bb; n++;
       }
-      const terr = classifyColour(R / n, G / n, B / n);
+      const terr = classifyColor(R / n, G / n, B / n);
       if (!terr) continue;
       const id = hexId(c, r), h = emptyHex(id); h.terrain = terr; applyTerrainIcon(h); hexes[id] = h;
     }
@@ -2616,7 +2616,7 @@ function escapeHtml(s) {
 }
 function escapeXml(s) { return escapeHtml(s); }
 function clip(s, n) { s = String(s || ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
-// Darken a #rrggbb colour by blending each channel toward black by `amt` (0–1),
+// Darken a #rrggbb color by blending each channel toward black by `amt` (0–1),
 // keeping the same hue — used to mark a surveyed hex a shade deeper than its region.
 function darken(hex, amt) {
   const k = 1 - amt;

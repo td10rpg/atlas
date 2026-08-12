@@ -88,7 +88,7 @@ export function normalizeMarkers(raw) {
     .filter((m) => m && m.hexId && m.type)
     .map((m) => {
       const out = { type: String(m.type), hexId: String(m.hexId), label: typeof m.label === 'string' ? m.label : '' };
-      // Party tokens carry a colour index (0-9) so multiple parties stay distinct.
+      // Party tokens carry a color index (0-9) so multiple parties stay distinct.
       if (Number.isFinite(+m.color)) out.color = Math.max(0, Math.min(9, Math.round(+m.color)));
       return out;
     });
@@ -202,7 +202,7 @@ export function createStarterAtlas(withHinterlands = true) {
     a.hexMiles = seed.hexMiles || a.hexMiles;
     a.hexes = seedHinterlands();
     // The seed also carries the atlas-level overlays authored on the canon map:
-    // its region set (names + colours), the rivers, and the map labels.
+    // its region set (names + colors), the rivers, and the map labels.
     if (Array.isArray(seed.regions) && seed.regions.length) a.regions = normalizeRegions(seed.regions);
     if (Array.isArray(seed.rivers)) a.rivers = normalizeRivers(seed.rivers);
     if (Array.isArray(seed.labels)) a.labels = normalizeLabels(seed.labels);
@@ -212,9 +212,9 @@ export function createStarterAtlas(withHinterlands = true) {
 
 // ---- random terrain map (backlog 15) --------------------------------------
 // Fill a whole grid with *coherent* terrain (ranges cluster, coasts run in lines)
-// by growing outward with the neighbour-aware roll — but leave every hex's survey
-// content blank. Rolling a hex per already-placed neighbours (row-major order, so
-// left/up neighbours are set) gives believable country rather than noise.
+// by growing outward with the neighbor-aware roll — but leave every hex's survey
+// content blank. Rolling a hex per already-placed neighbors (row-major order, so
+// left/up neighbors are set) gives believable country rather than noise.
 
 export function createRandomAtlas(cols, rows) {
   const a = createAtlas();
