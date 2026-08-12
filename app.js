@@ -2290,7 +2290,7 @@ function openTableEditor(key) {
   if (!EDITABLE_TABLES.some((t) => t.key === key)) return;
   const cur = S.atlas.customTables && S.atlas.customTables[key];
   const rows = (Array.isArray(cur) && cur.length ? cur : defaultTable(key)).map((r) => ({ name: r.name || '', desc: r.desc || '' }));
-  tableEdit = { key, rows };
+  tableEdit = { key, rows, view: 'rows' };
   renderTableModal();
 }
 function renderTableModal() {
@@ -2303,20 +2303,66 @@ function renderTableModal() {
   }
   if (!tableEdit) { el.remove(); return; }
   const isCustom = !!(S.atlas.customTables && S.atlas.customTables[tableEdit.key]);
+  const md = tableEdit.view === 'md';
   const rows = tableEdit.rows.map((r, i) =>
     `<div class="trow"><span class="tnum">${i + 1}</span>` +
     `<input class="tname" data-i="${i}" data-f="name" value="${escapeHtml(r.name)}" placeholder="Result name" />` +
     `<textarea class="tdesc" data-i="${i}" data-f="desc" rows="2" placeholder="Description (optional)">${escapeHtml(r.desc)}</textarea>` +
     `<button class="iconbtn danger" data-mact="del" data-i="${i}" title="Delete row">✕</button></div>`).join('');
+  const body = md
+    ? `<div class="trows"><textarea class="tmd" data-md="1" spellcheck="false" placeholder="Paste or edit the table as Markdown…">${escapeHtml(rowsToMd(tableEdit.rows))}</textarea></div>`
+    : `<div class="trows">${rows || '<p class="modal-note">No rows—add one.</p>'}</div>`;
+  const note = md
+    ? `Edit or paste a whole table in Markdown—one result per row. The leading <code>#</code> column is optional. Changes feed straight into rolling and are saved with this atlas.`
+    : `Edit results or add your own—they feed straight into rolling and re-rolling, and are saved with this atlas.`;
   el.innerHTML =
     `<div class="modal-card" role="dialog" aria-label="Edit table">` +
       `<div class="modal-head"><h3>${escapeHtml(tableLabel(tableEdit.key))}${isCustom ? ' <span class="custom-tag">customised</span>' : ''}</h3>` +
+      `<div class="tabs"><button class="tab ${md ? '' : 'active'}" data-mact="view-rows">Rows</button>` +
+      `<button class="tab ${md ? 'active' : ''}" data-mact="view-md">Markdown</button></div>` +
       `<button class="btn small" data-mact="close">Done</button></div>` +
-      `<p class="modal-note">Edit results or add your own—they feed straight into rolling and re-rolling, and are saved with this atlas.</p>` +
-      `<div class="trows">${rows || '<p class="modal-note">No rows—add one.</p>'}</div>` +
-      `<div class="modal-foot"><button class="btn small" data-mact="add">＋ Add row</button>` +
+      `<p class="modal-note">${note}</p>` +
+      body +
+      `<div class="modal-foot">` +
+      (md ? '' : `<button class="btn small" data-mact="add">＋ Add row</button>`) +
       `<button class="btn small ghost" data-mact="reset" title="Restore the built-in table">Reset to default</button></div>` +
     `</div>`;
+}
+
+/** Serialize editor rows to a GFM table (for the Markdown view / copy-out). */
+function rowsToMd(rows) {
+  const esc = (v) => String(v || '').replace(/\|/g, '\\|').replace(/\n/g, '<br>');
+  const out = ['| # | Result | Description |', '| --- | --- | --- |'];
+  rows.forEach((r, i) => out.push(`| ${i + 1} | ${esc(r.name)} | ${esc(r.desc)} |`));
+  return out.join('\n');
+}
+/** Split one Markdown table line into trimmed cells (honours \| and <br>). */
+function splitMdRow(line) {
+  const s = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  const cells = []; let cur = '';
+  for (let k = 0; k < s.length; k++) {
+    const c = s[k];
+    if (c === '\\' && s[k + 1] === '|') { cur += '|'; k++; continue; }
+    if (c === '|') { cells.push(cur); cur = ''; continue; }
+    cur += c;
+  }
+  cells.push(cur);
+  return cells.map((x) => x.replace(/<br\s*\/?>/gi, '\n').trim());
+}
+const isMdDelimRow = (cells) => cells.length > 0 && cells.every((c) => /^:?-{1,}:?$/.test(c.trim()));
+/** Parse a pasted/edited GFM table back to {name,desc} rows (lenient). */
+function mdToRows(text) {
+  const parsed = String(text).split(/\r?\n/).filter((l) => l.indexOf('|') !== -1).map(splitMdRow);
+  const d = parsed.findIndex(isMdDelimRow);
+  const header = d > 0 ? parsed[d - 1] : null;
+  const data = d >= 0 ? parsed.slice(d + 1) : parsed;
+  let idxCol;
+  if (header) idxCol = /^(#|d\d+|roll|no\.?|)$/i.test((header[0] || '').trim());
+  else idxCol = data.length > 0 && data[0].length > 1 && /^\d+$/.test((data[0][0] || '').trim());
+  return data.map((cells) => {
+    const ni = idxCol && cells.length > 1 ? 1 : 0;
+    return { name: (cells[ni] || '').trim(), desc: cells.slice(ni + 1).join(' ').trim() };
+  }).filter((r) => r.name || r.desc);
 }
 function onModalClick(e) {
   const b = e.target.closest('[data-mact]');
@@ -2327,13 +2373,17 @@ function onModalClick(e) {
   if (e.target.id === 'modal') { if (importImg) { importImg = null; e.currentTarget.remove(); } else closeModal(); return; } // backdrop
   if (!b || !tableEdit) return;
   if (act === 'close') { closeModal(); return; }
+  if (act === 'view-rows') { if (tableEdit.view !== 'rows') { if (tableTimer) commitTable(); tableEdit.view = 'rows'; renderTableModal(); } return; }
+  if (act === 'view-md') { if (tableEdit.view !== 'md') { if (tableTimer) commitTable(); tableEdit.view = 'md'; renderTableModal(); } return; }
   if (act === 'add') { tableEdit.rows.push({ name: '', desc: '' }); commitTable(); renderTableModal(); return; }
   if (act === 'del') { tableEdit.rows.splice(+b.dataset.i, 1); commitTable(); renderTableModal(); return; }
   if (act === 'reset') { tableEdit.rows = defaultTable(tableEdit.key).map((r) => ({ name: r.name, desc: r.desc })); commitTable(); renderTableModal(); }
 }
 function onModalInput(e) {
   const t = e.target;
-  if (!tableEdit || t.dataset.i == null || !t.dataset.f) return;
+  if (!tableEdit) return;
+  if (t.dataset.md) { tableEdit.rows = mdToRows(t.value); clearTimeout(tableTimer); tableTimer = setTimeout(commitTable, 300); return; }
+  if (t.dataset.i == null || !t.dataset.f) return;
   const i = +t.dataset.i;
   if (tableEdit.rows[i]) { tableEdit.rows[i][t.dataset.f] = t.value; clearTimeout(tableTimer); tableTimer = setTimeout(commitTable, 300); }
 }

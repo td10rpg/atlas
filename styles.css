@@ -303,6 +303,9 @@ input, select, textarea { font-family: inherit; color: inherit; }
 .tname:focus, .tdesc:focus { outline: 2px solid var(--accent); border-color: transparent; }
 .tdesc { resize: vertical; line-height: 1.42; }
 .trow .iconbtn.danger { align-self: start; margin-top: 4px; }
+.tmd { width: 100%; min-height: 240px; resize: vertical; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-family: var(--mono); font-size: 12.5px; line-height: 1.5; color: var(--ink); white-space: pre; tab-size: 2; }
+.tmd:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.modal-head .tabs { display: flex; gap: 4px; }
 .modal-foot { display: flex; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
 /* ---- confirm modal (replaces native confirm()) ---- */
 .confirm-card { width: min(440px, 100%); }
