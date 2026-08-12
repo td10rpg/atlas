@@ -135,7 +135,7 @@ export const WEATHER = [
   { lo: 5, hi: 5,   name: 'Light rain or snow',    desc: 'Visibility ≤ 1 mile.' },
   { lo: 6, hi: 6,   name: 'Heavy rain or snow',    desc: 'Travel ½ speed; visibility ≤ ¼ mile.' },
   { lo: 7, hi: 7,   name: 'Thunderstorm or blizzard', desc: 'Survival check if unsheltered; visibility 100 ft.' },
-  { lo: 8, hi: 8,   name: 'Heatwave or cold snap', desc: 'Fatigue: −1 Power or −1 Reflex.' },
+  { lo: 8, hi: 8,   name: 'Heatwave or cold snap', desc: 'Fatigue: -1 Power or -1 Reflex.' },
   { lo: 9, hi: 9,   name: 'Unnatural weather',     desc: 'Ash, coloured rain, whispers on the wind.' },
   { lo: 10, hi: 10, name: 'Weather shift',         desc: 'And at the worst possible time.' },
 ];
