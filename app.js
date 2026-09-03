@@ -539,11 +539,13 @@ function buildHex(col, row) {
   if (S.showLabels && rec && rec.name) {
     stamps += `<text class="hex-name" x="${cx}" y="${(cy + SIZE * 0.78).toFixed(1)}" text-anchor="middle">${escapeXml(clip(rec.name, 14))}</text>`;
   }
-  if (rec && hasSite(rec)) {
+  // Badges are annotation, like the numbers and names they sit beside — they
+  // follow the same toggle, so hiding labels gives a clean terrain map.
+  if (S.showLabels && rec && hasSite(rec)) {
     const n = rec.sites.filter((s) => s && (s.name || s.type || s.condition || s.opposition || s.treasure)).length;
     stamps += badge(cx - SIZE * 0.54, cy - SIZE * 0.44, 'site', n);
   }
-  if (rec && hasSettlement(rec)) {
+  if (S.showLabels && rec && hasSettlement(rec)) {
     const n = rec.settlements.filter((s) => s && (s.name || s.type || s.conflict)).length;
     stamps += badge(cx + SIZE * 0.54, cy - SIZE * 0.44, 'settlement', n);
   }
@@ -2277,7 +2279,7 @@ async function saveImage() {
     body: 'PNG is a ready-to-share picture; SVG is a crisp vector you can scale or edit. Both include the atlas title and a scale bar, and both follow the current theme.',
     checks: [
       { key: 'crop', label: 'Crop to surveyed hexes', checked: true },
-      { key: 'labels', label: 'Hex numbers and names', checked: S.showLabels },
+      { key: 'labels', label: 'Hex numbers, names and badges', checked: S.showLabels },
     ],
     choices: [{ value: 'png', label: 'PNG', primary: true }, { value: 'svg', label: 'SVG' }],
   });
