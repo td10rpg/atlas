@@ -2143,20 +2143,50 @@ function downloadBlob(blob, filename) {
 }
 
 /** A standalone SVG string of the current atlas: title + map + scale bar. */
-function buildExportSVG() {
-  const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
+/**
+ * A standalone SVG string of the current atlas: title + map + scale bar.
+ * opts.crop   — draw only hexes the atlas holds a record for, cropped tight to
+ *               them (default true), so a small survey exports as the survey
+ *               rather than as a sea of blank cells.
+ * opts.labels — hex numbers and names (defaults to the on-screen toggle).
+ */
+function buildExportSVG(opts = {}) {
+  const crop = opts.crop !== false;
   const cs = getComputedStyle(document.documentElement);
   const tok = (n) => cs.getPropertyValue(n).trim();
   const bg = tok('--map-bg'), hexLine = tok('--hex-line'), river = tok('--river');
   const ink = tok('--ink'), inkDim = tok('--ink-dim'), accent = tok('--accent');
+  // --hex-blank is used by every hex with no record; without it here the export
+  // resolves an undefined var and those hexes lose their fill entirely.
+  const hexBlank = tok('--hex-blank');
   const serif = "'EB Garamond', Georgia, 'Times New Roman', serif";
   const sans = "system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif";
 
-  // Reuse the on-screen builders over the full board (labels follow S.showLabels).
-  let base = '', glyph = '', top = '', stamps = '';
+  // Which cells to draw. Cropping needs at least one record to crop to; an atlas
+  // with none falls back to the whole board rather than exporting nothing.
+  let cells = [];
   for (let col = 0; col < S.atlas.cols; col++) {
-    for (let row = 0; row < S.atlas.rows; row++) { const p = buildHex(col, row); base += p.base; glyph += p.glyph; top += p.top; stamps += p.stamps; }
+    for (let row = 0; row < S.atlas.rows; row++) {
+      if (!crop || getHex(S.atlas, hexId(col, row))) cells.push({ col, row });
+    }
   }
+  if (!cells.length) {
+    for (let col = 0; col < S.atlas.cols; col++) {
+      for (let row = 0; row < S.atlas.rows; row++) cells.push({ col, row });
+    }
+  }
+
+  // Reuse the on-screen builders. Labels follow the export option, so a caller
+  // can hide them without disturbing the user's view.
+  const prevLabels = S.showLabels;
+  if (opts.labels !== undefined) S.showLabels = !!opts.labels;
+  let base = '', glyph = '', top = '', stamps = '';
+  try {
+    for (const { col, row } of cells) {
+      const p = buildHex(col, row); base += p.base; glyph += p.glyph; top += p.top; stamps += p.stamps;
+    }
+  } finally { S.showLabels = prevLabels; }
+
   const rivers = (S.atlas.rivers || []).map((l) => { const d = smoothPath(l); return d ? `<path class="river" d="${d}"/>` : ''; }).join('');
   const markers = (S.atlas.markers || []).map((m) => {
     const { col, row } = parseId(m.hexId);
@@ -2171,21 +2201,36 @@ function buildExportSVG() {
   const title = (S.atlas.name || '').trim();
   const titleH = title ? SIZE * 1.4 : SIZE * 0.4;
   const scaleH = SIZE * 1.2;
-  const W = w, H = titleH + h + scaleH;
+
+  // Crop box: the drawn hexes' own extent. A flat-top hex reaches SIZE left and
+  // right of its centre and SIZE*sqrt(3)/2 above and below.
+  const halfH = SIZE * Math.sqrt(3) / 2;
+  const pts = cells.map(({ col, row }) => hexCenter(col, row, SIZE));
+  const minX = Math.min(...pts.map((p) => p.x)) - SIZE;
+  const maxX = Math.max(...pts.map((p) => p.x)) + SIZE;
+  const minY = Math.min(...pts.map((p) => p.y)) - halfH;
+  const maxY = Math.max(...pts.map((p) => p.y)) + halfH;
+  const pad = SIZE * 0.5;
+  const mapW = maxX - minX, mapH = maxY - minY;
+  const W = Math.ceil(mapW + pad * 2), H = Math.ceil(titleH + mapH + scaleH);
+  const ox = pad - minX, oy = titleH - minY;
 
   const titleEl = title
     ? `<text x="${(W / 2).toFixed(1)}" y="${(titleH * 0.66).toFixed(1)}" text-anchor="middle" font-family="${serif}" font-size="${(SIZE * 0.7).toFixed(1)}" font-weight="600" fill="${ink}">${escapeXml(title)}</text>`
     : '';
 
-  const bx = SIZE, by = titleH + h + SIZE * 0.55, barLen = SIZE * 2;
+  // One hex of TRAVEL is centre-to-centre, which on a hex grid is SIZE*sqrt(3)
+  // for all six neighbours alike — not SIZE*2, which is the corner-to-corner
+  // width and 15.5% too long. A 6-mile hex is 6 miles across the flats.
+  const bx = pad, by = titleH + mapH + SIZE * 0.55, barLen = SIZE * Math.sqrt(3);
   const area = Math.round(0.8660254 * S.atlas.hexMiles * S.atlas.hexMiles);
   const scaleBar =
-    `<path d="M${bx} ${(by - 4).toFixed(1)}V${(by + 4).toFixed(1)}M${bx} ${by}H${bx + barLen}M${bx + barLen} ${(by - 4).toFixed(1)}V${(by + 4).toFixed(1)}" stroke="${ink}" stroke-width="1.4" fill="none"/>` +
-    `<text x="${bx + barLen + 8}" y="${(by + 4).toFixed(1)}" font-family="${sans}" font-size="11" fill="${ink}">1 hex = ${S.atlas.hexMiles} mi (≈ ${area} sq mi)</text>`;
+    `<path d="M${bx} ${(by - 4).toFixed(1)}V${(by + 4).toFixed(1)}M${bx} ${by}H${(bx + barLen).toFixed(1)}M${(bx + barLen).toFixed(1)} ${(by - 4).toFixed(1)}V${(by + 4).toFixed(1)}" stroke="${ink}" stroke-width="1.4" fill="none"/>` +
+    `<text x="${(bx + barLen + 8).toFixed(1)}" y="${(by + 4).toFixed(1)}" font-family="${sans}" font-size="11" fill="${ink}">1 hex = ${S.atlas.hexMiles} mi (≈ ${area} sq mi)</text>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     `<style>` +
-      `svg{--hex-line:${hexLine};--river:${river};--ink:${ink};--ink-dim:${inkDim};--accent:${accent};--bg:${appBg};}` +
+      `svg{--hex-line:${hexLine};--river:${river};--ink:${ink};--ink-dim:${inkDim};--accent:${accent};--bg:${appBg};--hex-blank:${hexBlank};}` +
       `.hex-top polygon{fill:none;stroke:${S.showGrid ? 'var(--hex-line)' : 'none'};stroke-width:1;}` +
       `.hex-label{fill:var(--ink-dim);opacity:.6;font-size:8px;font-family:${sans};}` +
       `.hex-name{fill:var(--ink);font-size:8.5px;font-weight:600;font-family:${serif};}` +
@@ -2194,13 +2239,13 @@ function buildExportSVG() {
     `</style>` +
     `<rect width="${W}" height="${H}" fill="${bg}"/>` +
     titleEl +
-    `<g transform="translate(0,${titleH.toFixed(1)})">${base}${rivers}${glyph}${top}${stamps}${labels}${markers}</g>` +
+    `<g transform="translate(${ox.toFixed(1)},${oy.toFixed(1)})">${base}${rivers}${glyph}${top}${stamps}${labels}${markers}</g>` +
     scaleBar +
   `</svg>`;
 }
 
-function exportImage(format) {
-  const svg = buildExportSVG();
+function exportImage(format, opts) {
+  const svg = buildExportSVG(opts);
   const name = ((S.atlas.name || 'atlas').replace(/[^\w.-]+/g, '-') || 'atlas');
   if (format === 'svg') {
     downloadBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), name + '.svg');
@@ -2227,12 +2272,16 @@ function exportImage(format) {
 }
 
 async function saveImage() {
-  const fmt = await confirmModal({
+  const res = await confirmModal({
     title: 'Save map image',
-    body: 'PNG is a ready-to-share picture; SVG is a crisp vector you can scale or edit. Both include the atlas title and a scale bar.',
+    body: 'PNG is a ready-to-share picture; SVG is a crisp vector you can scale or edit. Both include the atlas title and a scale bar, and both follow the current theme.',
+    checks: [
+      { key: 'crop', label: 'Crop to surveyed hexes', checked: true },
+      { key: 'labels', label: 'Hex numbers and names', checked: S.showLabels },
+    ],
     choices: [{ value: 'png', label: 'PNG', primary: true }, { value: 'svg', label: 'SVG' }],
   });
-  if (fmt) exportImage(fmt);
+  if (res && res.value) exportImage(res.value, res.checks);
 }
 function onImportFile(e) {
   const file = e.target.files && e.target.files[0];
@@ -2481,24 +2530,36 @@ function toggleIntensityPopover(anchor) {
 // or null if dismissed (Cancel button, backdrop click, or Esc). Enter triggers
 // the primary choice. Its own #confirm element keeps it clear of the table
 // editor's #modal and handlers.
-function confirmModal({ title, body, choices, cancelLabel = 'Cancel' }) {
+function confirmModal({ title, body, choices, checks, cancelLabel = 'Cancel' }) {
   return new Promise((resolve) => {
     const prev = $('#confirm'); if (prev) prev.remove();
     const el = document.createElement('div');
     el.id = 'confirm'; el.className = 'modal';
     const btns = choices.map((c, i) =>
       `<button class="btn${c.primary ? ' primary' : ''}${c.danger ? ' danger' : ''}" data-cv="${i}">${escapeHtml(c.label)}</button>`).join('');
+    // Optional checkboxes. When present the promise resolves to
+    // { value, checks: { key: bool } } instead of the bare value, so existing
+    // callers that pass no `checks` are unaffected.
+    const checkEls = (checks || []).map((c) =>
+      `<label class="confirm-check"><input type="checkbox" data-ck="${escapeHtml(c.key)}"${c.checked ? ' checked' : ''}/> ${escapeHtml(c.label)}</label>`).join('');
     el.innerHTML =
       `<div class="modal-card confirm-card" role="alertdialog" aria-modal="true" aria-label="${escapeHtml(title)}">` +
         `<div class="modal-head"><h3>${escapeHtml(title)}</h3></div>` +
         (body ? `<p class="modal-body">${escapeHtml(body)}</p>` : '') +
+        (checkEls ? `<div class="confirm-checks">${checkEls}</div>` : '') +
         `<div class="modal-foot confirm-foot">` +
           `<button class="btn ghost" data-cv="cancel">${escapeHtml(cancelLabel)}</button>` +
           `<span class="foot-spacer"></span>${btns}` +
         `</div>` +
       `</div>`;
     document.body.appendChild(el);
-    const done = (val) => { document.removeEventListener('keydown', onKey); el.remove(); resolve(val); };
+    const readChecks = () => {
+      const out = {};
+      el.querySelectorAll('[data-ck]').forEach((i) => { out[i.dataset.ck] = i.checked; });
+      return out;
+    };
+    const wrap = (val) => (checks && val !== null ? { value: val, checks: readChecks() } : val);
+    const done = (val) => { document.removeEventListener('keydown', onKey); const w = wrap(val); el.remove(); resolve(w); };
     const onKey = (e) => {
       if (e.key === 'Escape') { e.preventDefault(); done(null); }
       else if (e.key === 'Enter') { const p = choices.find((c) => c.primary); if (p) { e.preventDefault(); done(p.value); } }

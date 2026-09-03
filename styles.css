@@ -321,6 +321,9 @@ input, select, textarea { font-family: inherit; color: inherit; }
 /* ---- confirm modal (replaces native confirm()) ---- */
 .confirm-card { width: min(440px, 100%); }
 .confirm-card .modal-body { padding: 14px 18px 2px; margin: 0; color: var(--ink); font-size: 14px; line-height: 1.5; white-space: pre-line; }
+.confirm-checks { padding: 10px 18px 2px; display: flex; flex-direction: column; gap: 6px; }
+.confirm-check { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 13px; cursor: pointer; }
+.confirm-check input { margin: 0; }
 .confirm-foot { align-items: center; }
 .confirm-foot .foot-spacer { flex: 1; }
 .btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; font-weight: 600; }
