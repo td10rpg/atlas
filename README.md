@@ -29,7 +29,11 @@ To publish one:
 
 4. In `td10rpg/td10`, add `content/Ranges/<Name>.md` with
    `permalink: atlas/<slug>` and the full-bleed iframe onto
-   `/static/tools/atlas/?range=<slug>` (copy an existing range page).
+   `/static/tools/atlas/#<slug>` (copy an existing range page).
+
+The slug must be plain kebab-case. Quartz rewrites iframe `src` attributes and
+strips `?` and `=` out of them, so a bare `#<slug>` anchor is the one form that
+survives; the app accepts `?range=<slug>` too, for links typed by hand.
 
 The site bakes ATLAS from this repo at build time, so a range goes live on the
 next `td10rpg/td10` build. Range pages are kept out of the site's nav by an

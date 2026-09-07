@@ -155,7 +155,11 @@ async function boot() {
   // 0.5) A published range (?range=<slug>) — the URL printed on the hex cards.
   //    Takes precedence over any remembered folder or local backup: someone who
   //    followed that link came to see that range, not to resume their own atlas.
-  const rangeSlug = new URLSearchParams(location.search).get('range');
+  //    Addressed as ?range=<slug> or as a bare #<slug>: the site frames this app
+  //    from a Markdown page, and Quartz's link rewriter strips '?' and '=' out
+  //    of an iframe src — a plain anchor is the one form that survives it.
+  const rangeSlug = new URLSearchParams(location.search).get('range')
+    || decodeURIComponent((location.hash || '').replace(/^#/, ''));
   if (rangeSlug && Object.prototype.hasOwnProperty.call(RANGES, rangeSlug)) {
     startRange(RANGES[rangeSlug]);
     return;
