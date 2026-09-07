@@ -20,6 +20,7 @@ import {
   emptyHex, emptySite, emptySettlement, serializeHex, hexDistance,
 } from './hex.js';
 import * as store from './storage.js';
+import { RANGES } from './ranges.js';
 import { TERRAIN_ICONS, terrainGlyph, overlayGlyph, dieGlyph, svgIcon } from './icons.js';
 import { render as mdRender } from './md.js';
 
@@ -69,6 +70,9 @@ const WAG_LINES = [
 const S = {
   atlas: createAtlas(),
   dir: null,            // FileSystemDirectoryHandle, or null (in-memory / localStorage)
+  ephemeral: false,     // arrived via ?range= — editable, but never mirrored to
+                        //   localStorage, so the visitor's own atlas survives
+  fitToContent: false,  // open the view on the surveyed hexes, not the whole board
   selected: null,       // primary selected hex id (drives the single-hex inspector)
   selection: new Set(), // all selected hex ids (multi-select; bulk panel when > 1)
   tool: 'inspect',
@@ -148,6 +152,15 @@ async function boot() {
     return;
   }
 
+  // 0.5) A published range (?range=<slug>) — the URL printed on the hex cards.
+  //    Takes precedence over any remembered folder or local backup: someone who
+  //    followed that link came to see that range, not to resume their own atlas.
+  const rangeSlug = new URLSearchParams(location.search).get('range');
+  if (rangeSlug && Object.prototype.hasOwnProperty.call(RANGES, rangeSlug)) {
+    startRange(RANGES[rangeSlug]);
+    return;
+  }
+
   // 1) Try to reconnect a remembered folder without prompting.
   const handle = store.supported() ? await store.restoreHandle() : null;
   if (handle) {
@@ -194,6 +207,21 @@ function startInMemory(msg) {
   if (msg) toast(msg);
 }
 
+/** Load a baked range (?range=<slug>) as an editable copy held only in memory.
+ *  Goes through the same normalizeConfig + loadHexes path as Import, so a range
+ *  can't drift from the app's schema. Nothing is written until the visitor puts
+ *  it somewhere themselves — New/Open folder, or Export. */
+function startRange(seed) {
+  const atlas = normalizeConfig(seed.config);
+  loadHexes(atlas, Object.values(seed.hexes || {}));
+  S.atlas = atlas;
+  S.dir = null;
+  S.ephemeral = true;
+  S.fitToContent = true;
+  afterLoad();
+  toast(`${atlas.name}—explore and edit it freely. Nothing is saved until you connect a folder or export, so your own atlas is untouched.`, false, 8000);
+}
+
 function afterLoad() {
   removeLanding();
   setTableOverrides(S.atlas.customTables || {}); // apply per-atlas WAG table edits (backlog 4)
@@ -220,7 +248,9 @@ function renderConn() {
   // connected folder can still exist from a prior session, so the status reflects it.
   const connected = !!S.dir;
   const dot = connected ? 'on' : '';
-  const label = connected ? 'Folder connected' : 'Saved in this browser';
+  const label = connected ? 'Folder connected'
+    : S.ephemeral ? 'Range copy — not saved'
+    : 'Saved in this browser';
   connEl.innerHTML =
     `<span class="status"><span class="dot ${dot}"></span>${label}</span>` +
     `<button class="btn small ghost" data-action="new-map" title="Start a blank grid to build a map from scratch (no terrain, no content)">New Map</button>` +
@@ -1094,14 +1124,35 @@ function fitView(attempt = 0) {
     if (attempt < 100) setTimeout(() => fitView(attempt + 1), 50);
     return;
   }
-  const { w, h } = boardSize(S.atlas.cols, S.atlas.rows, SIZE);
+  // A range is a handful of hexes on a full-size board, so fitting the board
+  // would open on a near-empty grid. Fit those atlases to their surveyed hexes
+  // instead — the same "crop to surveyed" idea the image export uses.
+  const box = S.fitToContent ? surveyedBounds() : null;
+  const { w, h } = box || boardSize(S.atlas.cols, S.atlas.rows, SIZE);
+  const ox = box ? box.x : 0, oy = box ? box.y : 0;
   const ar = rect.width / Math.max(1, rect.height);
   const pad = SIZE;
   const bw = w + pad, bh = h + pad;
   let vw, vh;
   if (bw / bh > ar) { vw = bw; vh = bw / ar; } else { vh = bh; vw = bh * ar; }
-  S.view = { x: -pad / 2 - (vw - bw) / 2, y: -pad / 2 - (vh - bh) / 2, w: vw, h: vh };
+  S.view = { x: ox - pad / 2 - (vw - bw) / 2, y: oy - pad / 2 - (vh - bh) / 2, w: vw, h: vh };
   applyView();
+}
+
+/** Bounding box (board units) of the hexes the atlas actually holds a record
+ *  for, or null if it holds none. */
+function surveyedBounds() {
+  const half = SIZE * Math.sqrt(3) / 2;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  Object.keys(S.atlas.hexes || {}).forEach((id) => {
+    const { col, row } = parseId(id);
+    if (col < 0 || row < 0) return;
+    const { x, y } = hexCenter(col, row, SIZE);
+    x0 = Math.min(x0, x - SIZE); x1 = Math.max(x1, x + SIZE);
+    y0 = Math.min(y0, y - half); y1 = Math.max(y1, y + half);
+  });
+  if (!Number.isFinite(x0)) return null;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 function zoom(factor, clientX, clientY) {
   const rect = mapEl.getBoundingClientRect();
@@ -1465,6 +1516,9 @@ function persistConfig() {
 }
 
 function saveLocal() {
+  // A range visit is a copy, not the visitor's atlas: don't overwrite the backup
+  // they already have. Connecting a folder makes it theirs, and the mirror resumes.
+  if (S.ephemeral && !S.dir) return;
   try {
     const hexes = {};
     Object.values(S.atlas.hexes).forEach((h) => { if (isPopulated(h)) hexes[h.id] = h; });
