@@ -1,0 +1,20 @@
+{
+  "_note": "Author's corrections applied on top of the ATLAS export by scripts/bake-range.py. The printed 2-pager is the authority: where it and the export disagree, the 2-pager wins.",
+
+  "_swap": "The 2-pager puts The Salt Sink on 1307 and The Hold on 1407; the export had the two hexes' survey results the other way round. Swapping the records puts the ore seam and the ruin under the printed hex numbers.",
+  "swap": [["1307", "1407"]],
+
+  "_names": "The ten Points of Interest, verbatim from page 2 of the 2-pager. A hex's site or settlement takes the same name, so the inspector and the map badge agree.",
+  "names": {
+    "1109": "The Ashen Forest",
+    "1208": "The Swamp Caves",
+    "1210": "Wolfpaw Spring",
+    "1307": "The Salt Sink",
+    "1309": "Whalebone",
+    "1311": "Vetterstead",
+    "1407": "The Hold",
+    "1409": "Vosk’s Station",
+    "1509": "Dunebarrows",
+    "1510": "Halfmast"
+  }
+}

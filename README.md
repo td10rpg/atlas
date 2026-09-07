@@ -17,8 +17,15 @@ To publish one:
 2. Bake it, picking the slug that will appear in the URL:
 
    ```
-   python scripts/bake-range.py <export.json> "The Dry Sea" > ranges/dry-sea.js
+   python scripts/bake-range.py <export.json> "The Dry Sea"        ranges/dry-sea.corrections.json > ranges/dry-sea.js
    ```
+
+   The corrections file is optional, and carries whatever the printed card
+   knows that the export does not — `names` (a hex's name, and its site or
+   settlement's) and `swap` (exchange two hexes' survey records). Keeping them
+   there rather than hand-editing the baked module means a fresh export can be
+   re-baked without redoing the work. Once a range is named in ATLAS itself and
+   re-exported, its names file can go.
 
 3. Add one line to `ranges.js`:
 
