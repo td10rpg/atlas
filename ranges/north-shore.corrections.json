@@ -1,11 +1,12 @@
 {
   "_note": "Author's corrections applied on top of the ATLAS export by scripts/bake-range.py. The printed 2-pager is the authority: where it and the survey disagree, the 2-pager wins.",
 
-  "_names": "Three locations were renamed on the sheet. The other seven kept the names they were baked with.",
+  "_names": "Three locations were renamed on the sheet. 0806 is renamed off-sheet, to stop it echoing The Drowned Shrine.",
   "names": {
     "0605": "The Drowned Shrine",
     "0606": "Coldwater Cave",
-    "0703": "Beacon Hill"
+    "0703": "Beacon Hill",
+    "0806": "The Grave Mile"
   },
 
   "_drop_factions": "The sheet settles on three factions. The Gale-Wardens are gone, which leaves Thornlight (0707) held by no one — a lighthouse everybody needs and nobody owns.",
