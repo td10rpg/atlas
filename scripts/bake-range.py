@@ -39,14 +39,24 @@ for a, b in fixes.get("swap", []):
 # Name the hex, and the site or settlement the name refers to. A hex carrying
 # both (a town beside a ruin) names only the settlement — the card names the
 # place people live, and inventing a name for the other is not ours to do.
+# A block already carrying the hex's old name is renamed along with it, so a
+# later pass over an export that was baked once already still lands.
 for hid, label in fixes.get("names", {}).items():
     h = hexes.get(hid)
     if not h:
         continue
+    was = h.get("name") or ""
     h["name"] = label
     blocks = h.get("settlements") or h.get("sites") or []
-    if len(blocks) == 1 and not blocks[0].get("name"):
+    if len(blocks) == 1 and blocks[0].get("name", "") in ("", was):
         blocks[0]["name"] = label
+
+# Retire a faction: drop it wherever it is tagged, for when the printed sheet
+# stops recognizing one the survey had.
+for gone in fixes.get("drop_factions", []):
+    for h in hexes.values():
+        if gone in h.get("factions", []):
+            h["factions"] = [f for f in h["factions"] if f != gone]
 
 seed = {"version": src.get("version", 1), "config": cfg, "hexes": hexes}
 
