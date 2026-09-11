@@ -6,43 +6,12 @@ and settlements, and keep Markdown notes per hex.
 
 ## Publishing a range
 
-A *range* is a 19-hex card's worth of country, published at its own link so the
-person it was made for can open it in ATLAS. Loading one is non-destructive: it
-takes an editable in-memory copy, never touches the localStorage mirror, and
-never prompts for a folder, so a visitor's own atlas survives the visit.
+A range is a 19-hex map served at `td10.org/atlas/<slug>`, where it opens as an
+editable copy that is never saved.
 
-To publish one:
-
-1. Survey the range in ATLAS and **Export** the `.json`.
-2. Bake it, picking the slug that will appear in the URL:
-
-   ```
-   python scripts/bake-range.py <export.json> "The Dry Sea"        ranges/dry-sea.corrections.json > ranges/dry-sea.js
-   ```
-
-   The corrections file is optional, and carries whatever the printed card
-   knows that the export does not — `names` (a hex's name, and its site or
-   settlement's) and `swap` (exchange two hexes' survey records). Keeping them
-   there rather than hand-editing the baked module means a fresh export can be
-   re-baked without redoing the work. Once a range is named in ATLAS itself and
-   re-exported, its names file can go.
-
-3. Add one line to `ranges.js`:
-
-   ```js
-   import { RANGE as DRY_SEA } from './ranges/dry-sea.js';
-   export const RANGES = { 'dry-sea': DRY_SEA };
-   ```
-
-4. In `td10rpg/td10`, add `content/Ranges/<Name>.md` with
-   `permalink: atlas/<slug>` and the full-bleed iframe onto
-   `/static/tools/atlas/#<slug>` (copy an existing range page).
-
-The slug must be plain kebab-case. Quartz rewrites iframe `src` attributes and
-strips `?` and `=` out of them, so a bare `#<slug>` anchor is the one form that
-survives; the app accepts `?range=<slug>` too, for links typed by hand.
-
-The site bakes ATLAS from this repo at build time, so a range goes live on the
-next `td10rpg/td10` build. Range pages are kept out of the site's nav by an
-Explorer filter in `quartz.layout.ts` — the links are unlisted, not private:
-anyone with the URL can open one, and `ranges.js` ships in the public bundle.
+1. Export the range from ATLAS as `.json`.
+2. Bake it:
+   `python scripts/bake-range.py <export.json> "<Name>" [ranges/<slug>.corrections.json] > ranges/<slug>.js`
+3. Register it in `ranges.js`.
+4. In `td10rpg/td10`, add `content/Ranges/<Name>.md` with `permalink: atlas/<slug>`
+   and an iframe onto `/static/tools/atlas/#<slug>`, then push.

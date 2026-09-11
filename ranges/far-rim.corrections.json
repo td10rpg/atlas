@@ -1,7 +1,4 @@
 {
-  "_note": "Author's corrections applied on top of the ATLAS export by scripts/bake-range.py.",
-
-  "_names": "Stillice is renamed glacite, the White March's crystal reagent, here and in the Fort document.",
   "names": {
     "1705": "The Glacite Beds"
   }
